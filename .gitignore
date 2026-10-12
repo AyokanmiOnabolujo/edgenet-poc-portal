@@ -1,0 +1,13 @@
+# Dependencies
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+
+# Environment variables & sensitive info
+**/.env
+**/.env.local
+
+# OS files
+.DS_Store
+Thumbs.db

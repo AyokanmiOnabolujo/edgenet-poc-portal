@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { @apply antialiased; }
+  body { @apply bg-slate-50 font-sans text-[15px] text-slate-900; }
+  h1, h2, h3 { @apply tracking-tight; }
+  ::selection { @apply bg-brand-200 text-ink-950; }
+  select.input {
+    appearance: none;
+    padding-right: 2.25rem;
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M5 8l5 5 5-5'/></svg>");
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition duration-150
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
+      active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+  }
+  .btn-primary { @apply bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-md disabled:hover:bg-brand-600 disabled:hover:shadow-sm; }
+  .btn-secondary { @apply border border-slate-300 bg-white text-slate-700 shadow-sm hover:border-slate-400 hover:bg-slate-50; }
+  .btn-sm { @apply rounded-lg px-3 py-1.5 text-xs; }
+
+  .input {
+    @apply block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition
+      placeholder:text-slate-400 hover:border-slate-400
+      focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15
+      disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;
+  }
+  textarea.input { @apply min-h-[110px] resize-y; }
+  .label { @apply mb-1.5 block text-sm font-medium text-slate-700; }
+  .hint { @apply mt-1.5 text-xs text-slate-500; }
+  .link {
+    @apply rounded font-medium text-brand-700 underline-offset-4 transition hover:text-brand-800 hover:underline
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500;
+  }
+  .card { @apply rounded-2xl border border-slate-200/80 bg-white shadow-sm; }
+  .th { @apply px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500; }
+  .td { @apply px-5 py-4 align-middle; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in, .animate-slide-up, .animate-grow-x { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}
