@@ -1,6 +1,7 @@
 'use client';
 import { FormEvent, useState } from 'react';
-import { Alert, Avatar, Field, PageHeader } from '@/components/ui';
+import { Alert, Avatar, Field } from '@/components/ui';
+import { PageTitle } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { User } from '@/lib/types';
@@ -32,7 +33,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Settings" subtitle="Manage your profile and sign-in details." />
+      <PageTitle title="Settings" subtitle="Manage your profile and sign-in details." />
       <div className="card mb-6 flex animate-slide-up items-center gap-4 p-6">
         <Avatar name={user?.name ?? ''} className="h-14 w-14 text-lg" />
         <div>
@@ -41,7 +42,7 @@ export default function Settings() {
         </div>
       </div>
       <form onSubmit={saveProfile} className="card mb-6 animate-slide-up p-6" style={{ animationDelay: '60ms' }}>
-        <h2 className="mb-5 text-base font-semibold text-slate-900">Profile</h2>
+        <h2 className="section-title mb-5">Profile</h2>
         {show(pMsg)}
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Full name" htmlFor="n"><input id="n" className="input" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -50,7 +51,7 @@ export default function Settings() {
         <div className="mt-6 flex justify-end"><button className="btn btn-primary">Save profile</button></div>
       </form>
       <form onSubmit={savePassword} className="card animate-slide-up p-6" style={{ animationDelay: '120ms' }}>
-        <h2 className="mb-5 text-base font-semibold text-slate-900">Change password</h2>
+        <h2 className="section-title mb-5">Change password</h2>
         {show(wMsg)}
         <div className="space-y-5">
           <Field label="Current password" htmlFor="cp"><input id="cp" className="input" type="password" required autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} /></Field>

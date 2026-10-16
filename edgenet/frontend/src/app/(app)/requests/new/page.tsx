@@ -1,7 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { Alert, Field, Icon, PageHeader, Spinner } from '@/components/ui';
+import { Alert, Field, Icon, Spinner } from '@/components/ui';
+import { PageTitle } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useRequireRole } from '@/lib/auth';
 import { EngineerRow, PocRequest, PRIORITIES, PRIORITY_LABEL, RESOURCE_TYPES, Resource } from '@/lib/types';
@@ -41,7 +42,7 @@ export default function NewRequest() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="New PoC request" subtitle="Capture the client, the project window and the infrastructure it needs." />
+      <PageTitle title="New PoC request" subtitle="Capture the client, the project window and the infrastructure it needs." />
 
       <ol className="mb-8 flex items-center" aria-label="Progress">
         {STEPS.map((s, i) => (
@@ -59,7 +60,7 @@ export default function NewRequest() {
 
       <form onSubmit={submit} className="card p-6 shadow-md sm:p-8">
         <div key={step} className="animate-fade-in">
-          <h2 className="text-lg font-semibold text-slate-900">{cur.title}</h2>
+          <h2 className="section-title">{cur.title}</h2>
           <p className="mb-6 mt-1 text-sm text-slate-500">{cur.text}</p>
           {error && <Alert>{error}</Alert>}
 

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Alert, Avatar, EmptyState, PageHeader, SkeletonRows } from '@/components/ui';
+import { Alert, Avatar, EmptyState, SkeletonRows } from '@/components/ui';
+import { PageTitle } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useRequireRole } from '@/lib/auth';
 import { EngineerRow } from '@/lib/types';
@@ -15,7 +16,7 @@ export default function Engineers() {
 
   return (
     <>
-      <PageHeader title="Engineers" subtitle="Your engineering team and how much each person is carrying right now." />
+      <PageTitle title="Engineers" subtitle="Your engineering team and how much each person is carrying right now." />
       {error && <Alert>{error}</Alert>}
       <div className="card overflow-hidden">
         {rows === null && !error ? <SkeletonRows />
@@ -28,7 +29,7 @@ export default function Engineers() {
                   {rows.map((e) => (
                     <tr key={e.id} className="transition-colors hover:bg-slate-50/70">
                       <td className="td"><span className="flex items-center gap-3"><Avatar name={e.name} className="h-9 w-9 text-sm" /><span><span className="block font-medium text-slate-900">{e.name}</span><span className="block text-xs text-slate-500">{e.email}</span></span></span></td>
-                      <td className="td"><span className="flex items-center gap-3"><span className="h-2 w-36 overflow-hidden rounded-full bg-slate-100"><span className="block h-full origin-left animate-grow-x rounded-full bg-amber-500" style={{ width: `${(e.active / max) * 100}%` }} /></span><span className="font-medium tabular-nums">{e.active}</span></span></td>
+                      <td className="td"><span className="flex items-center gap-3"><span className="h-2 w-36 overflow-hidden rounded-full bg-slate-100"><span className="block h-full origin-left animate-grow-x rounded-full bg-brand-500" style={{ width: `${(e.active / max) * 100}%` }} /></span><span className="font-medium tabular-nums">{e.active}</span></span></td>
                       <td className="td tabular-nums">{e.completed}</td>
                       <td className="td tabular-nums">{e.total}</td>
                     </tr>

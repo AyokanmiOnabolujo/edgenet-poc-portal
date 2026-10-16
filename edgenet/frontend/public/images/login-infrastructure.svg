@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" preserveAspectRatio="xMidYMid slice" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A1A21"/><stop offset=".55" stop-color="#0A2429"/><stop offset="1" stop-color="#0C3236"/>
+    </linearGradient>
+    <radialGradient id="glowTeal" cx=".82" cy=".08" r=".6">
+      <stop offset="0" stop-color="#1FB5A6" stop-opacity=".34"/><stop offset="1" stop-color="#1FB5A6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowBlue" cx=".08" cy=".95" r=".55">
+      <stop offset="0" stop-color="#2F63C8" stop-opacity=".28"/><stop offset="1" stop-color="#2F63C8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo">
+      <stop offset="0" stop-color="#6CC6BC" stop-opacity=".55"/><stop offset="1" stop-color="#6CC6BC" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vig" cx=".5" cy=".5" r=".75">
+      <stop offset=".6" stop-color="#050E12" stop-opacity="0"/><stop offset="1" stop-color="#050E12" stop-opacity=".62"/>
+    </radialGradient>
+    <linearGradient id="rackBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14414A"/><stop offset="1" stop-color="#0B2227"/>
+    </linearGradient>
+    <linearGradient id="unitBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1A4A52"/><stop offset="1" stop-color="#0F2D33"/>
+    </linearGradient>
+    <linearGradient id="beam" gradientUnits="userSpaceOnUse" x1="100" y1="0" x2="1100" y2="0">
+      <stop offset="0" stop-color="#35A99E"/><stop offset="1" stop-color="#3F78E0"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#fff" stroke-opacity=".045" stroke-width="1"/>
+    </pattern>
+    <pattern id="ports" x="448" y="866" width="22" height="32" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" rx="2" fill="#081A1F" stroke="#3B8E93" stroke-opacity=".7"/>
+      <circle cx="7" cy="23" r="1.8" fill="#4FD1C0" fill-opacity=".8"/>
+    </pattern>
+
+    <!-- all network cables as one path so they can be stroked twice (soft glow + crisp line) -->
+    <path id="net" d="
+      M262 250 C262 190 300 190 300 130
+      M300 130 C420 130 480 70 582 70
+      M618 70 C720 70 780 130 900 130
+      M900 130 C940 130 969 150 969 200
+      M300 130 C230 130 150 120 120 150
+      M900 130 C980 100 1040 110 1080 150
+      M262 730 C262 830 340 878 430 878
+      M969 709 C969 820 880 878 770 878
+      M520 906 C520 950 500 980 470 1010
+      M680 906 C680 950 700 980 730 1010"/>
+
+    <!-- server units (200 x 40) -->
+    <g id="bays">
+      <rect x="12" y="10" width="26" height="20" rx="3" fill="#081A1F" stroke="#2F7A80" stroke-opacity=".55"/>
+      <rect x="44" y="10" width="26" height="20" rx="3" fill="#081A1F" stroke="#2F7A80" stroke-opacity=".55"/>
+      <rect x="76" y="10" width="26" height="20" rx="3" fill="#081A1F" stroke="#2F7A80" stroke-opacity=".55"/>
+      <rect x="108" y="10" width="26" height="20" rx="3" fill="#081A1F" stroke="#2F7A80" stroke-opacity=".55"/>
+    </g>
+    <g id="srvA">
+      <rect width="200" height="40" rx="5" fill="url(#unitBody)" stroke="#2F7A80" stroke-opacity=".7"/>
+      <use href="#bays"/>
+      <circle cx="168" cy="14" r="2.6" fill="#4FD1C0"/><circle cx="180" cy="14" r="2.6" fill="#4FD1C0" fill-opacity=".35"/>
+      <path d="M152 26h36M152 31h36" stroke="#2F7A80" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g id="srvB">
+      <rect width="200" height="40" rx="5" fill="url(#unitBody)" stroke="#2F7A80" stroke-opacity=".7"/>
+      <use href="#bays"/>
+      <circle cx="168" cy="14" r="2.6" fill="#E8B04A" fill-opacity=".9"/><circle cx="180" cy="14" r="2.6" fill="#4FD1C0"/>
+      <path d="M152 26h36M152 31h36" stroke="#2F7A80" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g id="blank">
+      <rect width="200" height="40" rx="5" fill="#0D2A30" stroke="#2F7A80" stroke-opacity=".5"/>
+      <path d="M14 12h172M14 20h172M14 28h172" stroke="#2F7A80" stroke-opacity=".55" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 6"/>
+    </g>
+
+    <!-- rack (224 x 480) -->
+    <g id="rack">
+      <rect width="224" height="480" rx="10" fill="url(#rackBody)" stroke="#3B8E93" stroke-opacity=".7" stroke-width="1.5"/>
+      <rect x="6" y="6" width="212" height="468" rx="6" fill="#081A1F" fill-opacity=".55"/>
+      <use href="#srvA" x="12" y="16"/>
+      <use href="#srvB" x="12" y="66"/>
+      <use href="#srvA" x="12" y="116"/>
+      <use href="#blank" x="12" y="166"/>
+      <use href="#srvA" x="12" y="216"/>
+      <use href="#srvA" x="12" y="266"/>
+      <use href="#srvB" x="12" y="316"/>
+      <use href="#blank" x="12" y="366"/>
+      <use href="#srvA" x="12" y="416"/>
+    </g>
+
+    <!-- network node -->
+    <g id="node">
+      <circle r="26" fill="url(#halo)"/>
+      <circle r="6" fill="#0A1A21" stroke="#4FD1C0" stroke-width="2"/>
+      <circle r="2" fill="#4FD1C0"/>
+    </g>
+  </defs>
+
+  <!-- background -->
+  <rect width="1200" height="1000" fill="url(#bg)"/>
+  <rect width="1200" height="1000" fill="url(#glowTeal)"/>
+  <rect width="1200" height="1000" fill="url(#glowBlue)"/>
+  <rect width="1200" height="1000" fill="url(#grid)"/>
+
+  <!-- distant racks for depth -->
+  <g opacity=".42">
+    <use href="#rack" transform="translate(40 330) scale(.78)"/>
+    <use href="#rack" transform="translate(1000 300) scale(.78)"/>
+  </g>
+
+  <!-- floor glow under front racks -->
+  <ellipse cx="262" cy="748" rx="150" ry="14" fill="#1FB5A6" fill-opacity=".14"/>
+  <ellipse cx="969" cy="726" rx="158" ry="14" fill="#1FB5A6" fill-opacity=".14"/>
+
+  <!-- cables -->
+  <use href="#net" stroke="url(#beam)" stroke-width="7" stroke-opacity=".10"/>
+  <use href="#net" stroke="url(#beam)" stroke-width="1.6" stroke-opacity=".8" stroke-linecap="round"/>
+
+  <!-- data packets (static) -->
+  <g fill="#9FE6DC">
+    <circle cx="281" cy="190" r="2.5"/><circle cx="448" cy="100" r="2.5"/><circle cx="752" cy="100" r="2.5"/>
+    <circle cx="950" cy="146" r="2.5"/><circle cx="312" cy="842" r="2.5"/><circle cx="911" cy="835" r="2.5"/>
+  </g>
+
+  <!-- front racks -->
+  <use href="#rack" transform="translate(150 250)"/>
+  <use href="#rack" transform="translate(850 200) scale(1.06)"/>
+
+  <!-- core switch -->
+  <rect x="430" y="850" width="340" height="56" rx="9" fill="url(#unitBody)" stroke="#3B8E93" stroke-opacity=".7"/>
+  <rect x="448" y="866" width="264" height="32" fill="url(#ports)"/>
+  <circle cx="738" cy="872" r="3" fill="#4FD1C0"/><circle cx="752" cy="872" r="3" fill="#4FD1C0" fill-opacity=".35"/>
+  <path d="M730 886h28" stroke="#2F7A80" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- chip node -->
+  <circle cx="600" cy="70" r="56" fill="url(#halo)"/>
+  <g transform="translate(582 52)">
+    <rect width="36" height="36" rx="6" fill="#0A1A21" stroke="#4FD1C0" stroke-width="1.5"/>
+    <rect x="10" y="10" width="16" height="16" rx="3" fill="#4FD1C0" fill-opacity=".25" stroke="#4FD1C0" stroke-opacity=".7"/>
+    <path d="M9 -6v6M18 -6v6M27 -6v6M9 36v6M18 36v6M27 36v6M-6 9h6M-6 18h6M-6 27h6M36 9h6M36 18h6M36 27h6"
+          stroke="#4FD1C0" stroke-opacity=".7" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- network nodes -->
+  <use href="#node" x="300" y="130"/>
+  <use href="#node" x="900" y="130"/>
+  <use href="#node" x="120" y="150"/>
+  <use href="#node" x="1080" y="150"/>
+
+  <!-- registration marks -->
+  <g stroke="#4FD1C0" stroke-opacity=".3" stroke-width="1.5" stroke-linecap="round">
+    <path d="M96 84v24M84 96h24"/><path d="M1104 84v24M1092 96h24"/>
+    <path d="M96 892v24M84 904h24"/><path d="M1104 892v24M1092 904h24"/>
+  </g>
+
+  <!-- edge vignette -->
+  <rect width="1200" height="1000" fill="url(#vig)"/>
+</svg>

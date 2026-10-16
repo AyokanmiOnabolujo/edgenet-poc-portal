@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Alert, Avatar, Icon, PageHeader, PRIORITY_STYLE, StatTile, STATUS_STYLE } from '@/components/ui';
+import { Alert, Avatar, Icon, PRIORITY_STYLE, STATUS_STYLE } from '@/components/ui';
+import { PageTitle, SummaryCard } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useRequireRole } from '@/lib/auth';
 import { PRIORITIES, PRIORITY_LABEL, Report, STATUSES, STATUS_LABEL } from '@/lib/types';
@@ -30,12 +31,12 @@ export default function Reports() {
 
   return (
     <>
-      <PageHeader title="Reports" subtitle="How your PoC pipeline is moving and who is carrying it." />
+      <PageTitle title="Reports" subtitle="How your PoC pipeline is moving and who is carrying it." />
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Total requests" value={d.total} icon="layers" tint="bg-slate-100 text-slate-600" />
-        <StatTile label="Active PoCs" value={d.active} icon="server" tint={STATUS_STYLE.provisioning.tint} delay={60} />
-        <StatTile label="Completed" value={d.completed} icon="checkCircle" tint={STATUS_STYLE.completed.tint} delay={120} />
-        <StatTile label="Completion rate" value={`${d.completionRate}%`} icon="chart" tint="bg-brand-50 text-brand-600" delay={180} />
+        <SummaryCard label="Total requests" value={d.total} icon="layers" tint="bg-brand-50 text-brand-600" />
+        <SummaryCard label="Active PoCs" value={d.active} icon="server" tint="bg-blue-50 text-blue-600" delay={60} />
+        <SummaryCard label="Completed" value={d.completed} icon="checkCircle" tint={STATUS_STYLE.completed.tint} delay={120} />
+        <SummaryCard label="Completion rate" value={`${d.completionRate}%`} icon="chart" tint="bg-violet-50 text-violet-600" delay={180} />
       </div>
       {d.unassigned > 0 && (
         <p className="mb-6 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -44,16 +45,16 @@ export default function Reports() {
       )}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <section className="card animate-slide-up p-6" style={{ animationDelay: '80ms' }}>
-          <h2 className="mb-5 text-base font-semibold text-slate-900">Requests by status</h2>
+          <h2 className="section-title mb-5">Requests by status</h2>
           <Bars total={d.total} items={STATUSES.map((s) => ({ key: s, label: STATUS_LABEL[s], color: STATUS_STYLE[s].dot, value: d.byStatus[s] }))} />
         </section>
         <section className="card animate-slide-up p-6" style={{ animationDelay: '140ms' }}>
-          <h2 className="mb-5 text-base font-semibold text-slate-900">Requests by priority</h2>
+          <h2 className="section-title mb-5">Requests by priority</h2>
           <Bars total={d.total} items={PRIORITIES.map((p) => ({ key: p, label: PRIORITY_LABEL[p], color: PRIORITY_STYLE[p].dot, value: d.byPriority[p] }))} />
         </section>
       </div>
       <section className="card animate-slide-up overflow-hidden" style={{ animationDelay: '200ms' }}>
-        <h2 className="px-6 pb-4 pt-6 text-base font-semibold text-slate-900">Engineer workload</h2>
+        <h2 className="section-title px-6 pb-4 pt-6">Engineer workload</h2>
         {d.workload.length === 0 ? <p className="px-6 pb-6 text-sm text-slate-500">No engineers registered yet.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
@@ -62,7 +63,7 @@ export default function Reports() {
                 {d.workload.map((w) => (
                   <tr key={w.id} className="transition-colors hover:bg-slate-50/70">
                     <td className="td"><span className="flex items-center gap-3"><Avatar name={w.name} />{w.name}</span></td>
-                    <td className="td"><span className="flex items-center gap-3"><span className="h-2 w-32 overflow-hidden rounded-full bg-slate-100"><span className="block h-full origin-left animate-grow-x rounded-full bg-violet-500" style={{ width: `${(w.total / maxLoad) * 100}%` }} /></span><span className="font-medium tabular-nums">{w.total}</span></span></td>
+                    <td className="td"><span className="flex items-center gap-3"><span className="h-2 w-32 overflow-hidden rounded-full bg-slate-100"><span className="block h-full origin-left animate-grow-x rounded-full bg-brand-500" style={{ width: `${(w.total / maxLoad) * 100}%` }} /></span><span className="font-medium tabular-nums">{w.total}</span></span></td>
                     <td className="td tabular-nums">{w.active}</td>
                     <td className="td tabular-nums">{w.completed}</td>
                   </tr>

@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Alert, Avatar, PageHeader, PriorityBadge, STATUS_STYLE } from '@/components/ui';
+import { Alert, Avatar, PriorityBadge, STATUS_STYLE } from '@/components/ui';
+import { PageTitle } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PocRequest, ref, Status, STATUSES, STATUS_LABEL } from '@/lib/types';
@@ -27,14 +28,14 @@ export default function Board() {
 
   return (
     <>
-      <PageHeader title="Board" subtitle={user?.role === 'engineer' ? 'Drag your assigned requests to the next stage.' : 'Drag a request to move it between stages.'} />
+      <PageTitle title="Board" subtitle={user?.role === 'engineer' ? 'Drag your assigned requests to the next stage.' : 'Drag a request to move it between stages.'} />
       {error && <Alert>{error}</Alert>}
       <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
         {STATUSES.map((s, i) => {
           const items = (rows ?? []).filter((r) => r.status === s);
           return (
             <section key={s} aria-label={STATUS_LABEL[s]}
-              className={`min-h-[260px] min-w-[270px] flex-1 animate-slide-up rounded-2xl p-3 ring-2 transition duration-150 ${over === s ? 'bg-brand-50 ring-brand-500/60' : 'bg-slate-100/80 ring-transparent'}`}
+              className={`min-h-[260px] min-w-[270px] flex-1 animate-slide-up rounded-2xl p-3 ring-2 transition duration-150 ${over === s ? 'bg-brand-50 ring-brand-500/60' : 'bg-[#e9f2fa] ring-transparent'}`}
               style={{ animationDelay: `${i * 50}ms` }}
               onDragOver={(e) => { e.preventDefault(); setOver(s); }}
               onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null); }}

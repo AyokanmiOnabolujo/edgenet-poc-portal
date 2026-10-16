@@ -41,7 +41,8 @@
       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500;
   }
   .card { @apply rounded-2xl border border-slate-200/80 bg-white shadow-sm; }
-  .th { @apply px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500; }
+  .th { @apply px-5 py-3 text-left text-[13px] font-semibold text-slate-600; }
+  .section-title { @apply font-serif text-xl font-bold tracking-tight text-ink-900; }
   .td { @apply px-5 py-4 align-middle; }
 }
 

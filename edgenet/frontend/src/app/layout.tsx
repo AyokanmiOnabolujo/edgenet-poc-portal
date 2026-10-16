@@ -1,14 +1,12 @@
 import type { Metadata } from 'next';
-import { IBM_Plex_Sans } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth';
 import './globals.css';
 
-const plex = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-plex', display: 'swap' });
 export const metadata: Metadata = { title: 'EdgeNet PoC Request Portal' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={plex.variable}>
+    <html lang="en">
       <body className="font-sans"><AuthProvider>{children}</AuthProvider></body>
     </html>
   );
