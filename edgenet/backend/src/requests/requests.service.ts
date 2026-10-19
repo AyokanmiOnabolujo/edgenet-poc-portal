@@ -1,17 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Activity, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
 import { UsersService } from '../users/users.service';
 import { CreateRequestDto } from './dto';
-
-const LABEL: Record<Status, string> = {
-  new_request: 'New Request',
-  provisioning: 'Infrastructure Provisioning',
-  testing: 'In Testing',
-  completed: 'Completed',
-  decommissioned: 'Decommissioned',
-};
+import { canMove, checkTransition, LABEL, nextStatuses } from './workflow';
 
 @Injectable()
 export class RequestsService {
@@ -22,11 +15,12 @@ export class RequestsService {
     private usersSvc: UsersService,
   ) {}
 
-  list(me: User, status?: Status) {
-    return this.reqs.find({
+  async list(me: User, status?: Status) {
+    const rows = await this.reqs.find({
       where: { organisation: me.organisation, ...(status ? { status } : {}) },
       order: { createdAt: 'DESC' },
     });
+    return rows.map((r) => ({ ...r, nextStatuses: nextStatuses(me, r) }));
   }
 
   async get(me: User, id: string) {
@@ -36,7 +30,7 @@ export class RequestsService {
     });
     if (!r) throw new NotFoundException('PoC request not found.');
     r.activity.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    return r;
+    return Object.assign(r, { nextStatuses: nextStatuses(me, r) });
   }
 
   private log(request: PocRequest, actor: User, message: string) {
@@ -61,14 +55,18 @@ export class RequestsService {
     return this.get(me, r.id);
   }
 
-  async setStatus(me: User, id: string, status: Status) {
+  async setStatus(me: User, id: string, status: Status, remarks?: string) {
     const r = await this.get(me, id);
-    if (me.role === 'engineer' && r.assignedEngineer?.id !== me.id) {
-      throw new ForbiddenException('Only the assigned engineer can move this request.');
-    }
+    if (!canMove(me, r)) throw new ForbiddenException('Only the assigned engineer can move this request.');
     if (r.status === status) return r;
-    await this.reqs.update(id, { status });
-    await this.log(r, me, `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.`);
+    checkTransition(r, status, remarks);
+    const reason = remarks?.trim() ? ` Reason: ${remarks.trim()}` : '';
+    await this.reqs.manager.transaction(async (m) => {
+      // Only succeeds if nobody moved the request since we read it, so two concurrent moves cannot both apply.
+      const res = await m.update(PocRequest, { id, status: r.status }, { status });
+      if (!res.affected) throw new ConflictException('This request was just changed by someone else. Refresh and try again.');
+      await m.save(m.create(Activity, { request: { id }, actor: me, message: `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.${reason}` }));
+    });
     return this.get(me, id);
   }
 

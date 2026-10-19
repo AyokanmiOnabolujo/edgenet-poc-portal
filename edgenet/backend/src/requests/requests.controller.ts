@@ -16,7 +16,7 @@ export class RequestsController {
   @Get(':id') get(@CurrentUser() me: User, @Param('id', ParseUUIDPipe) id: string) { return this.s.get(me, id); }
   @Post() @Roles('account_manager') create(@CurrentUser() me: User, @Body() dto: CreateRequestDto) { return this.s.create(me, dto); }
   @Patch(':id/status') status(@CurrentUser() me: User, @Param('id', ParseUUIDPipe) id: string, @Body() dto: StatusDto) {
-    return this.s.setStatus(me, id, dto.status);
+    return this.s.setStatus(me, id, dto.status, dto.remarks);
   }
   @Patch(':id/assign') @Roles('account_manager') assign(@CurrentUser() me: User, @Param('id', ParseUUIDPipe) id: string, @Body() dto: AssignDto) {
     return this.s.assign(me, id, dto.engineerId);

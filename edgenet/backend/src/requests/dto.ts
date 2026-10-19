@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, IsArray, IsDateString, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min, ValidateNested,
+  ArrayMinSize, IsArray, IsDateString, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { PRIORITIES, Priority, STATUSES, Status } from '../entities';
 
@@ -23,5 +23,8 @@ export class CreateRequestDto {
   @IsOptional() @IsUUID() assignedEngineerId?: string;
 }
 
-export class StatusDto { @IsIn(STATUSES) status: Status; }
+export class StatusDto {
+  @IsIn(STATUSES) status: Status;
+  @IsOptional() @IsString() @MaxLength(500) remarks?: string;
+}
 export class AssignDto { @IsOptional() @IsUUID() engineerId?: string | null; }

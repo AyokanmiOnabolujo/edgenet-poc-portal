@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Avatar, Field, Icon, PriorityBadge, StatusBadge } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { EngineerRow, fmtDate, fmtDateTime, PocRequest, ref, Status, STATUSES, STATUS_LABEL } from '@/lib/types';
+import { EngineerRow, fmtDate, fmtDateTime, PocRequest, ref, statusBody, STATUS_LABEL } from '@/lib/types';
 
 const dt = 'text-xs font-medium uppercase tracking-wider text-slate-400';
 const dd = 'mt-1 text-sm text-slate-800';
@@ -30,7 +30,16 @@ export default function Details() {
   }
 
   if (!r) return error ? <Alert>{error}</Alert> : <div className="space-y-4" aria-busy="true"><div className="h-8 w-1/3 animate-pulse rounded-lg bg-slate-200/70" /><div className="h-64 animate-pulse rounded-2xl bg-slate-200/50" /></div>;
-  const canMove = isAM || r.assignedEngineer?.id === user?.id;
+  const canMove = r.nextStatuses.length > 0;
+  const blocked = r.nextStatuses.find((t) => t.blocked)?.blocked;
+  const hint = !canMove
+    ? r.status === 'decommissioned' ? 'This is the final stage.' : 'Only the assigned engineer or the Account Manager can change the stage.'
+    : blocked ?? undefined;
+  function move(to: string) {
+    const t = r!.nextStatuses.find((x) => x.to === to);
+    const body = t && statusBody(t);
+    if (body) update('status', body);
+  }
 
   return (
     <>
@@ -80,9 +89,10 @@ export default function Details() {
         <div className="space-y-6">
           <section className="card animate-slide-up space-y-5 p-6" style={{ animationDelay: '100ms' }}>
             <h2 className="text-base font-semibold text-slate-900">Stage and owner</h2>
-            <Field label="Status" htmlFor="st" hint={canMove ? undefined : 'Only the assigned engineer or the Account Manager can change the stage.'}>
-              <select id="st" className="input" disabled={!canMove} value={r.status} onChange={(e) => update('status', { status: e.target.value as Status })}>
-                {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+            <Field label="Status" htmlFor="st" hint={hint}>
+              <select id="st" className="input" disabled={!canMove} value={r.status} onChange={(e) => move(e.target.value)}>
+                <option value={r.status}>{STATUS_LABEL[r.status]}</option>
+                {r.nextStatuses.map((t) => <option key={t.to} value={t.to} disabled={!!t.blocked}>{STATUS_LABEL[t.to]}{t.blocked ? ' (blocked)' : ''}</option>)}
               </select>
             </Field>
             {isAM ? (
