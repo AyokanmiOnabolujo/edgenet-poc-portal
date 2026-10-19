@@ -1,82 +1,38 @@
-import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { setup } from '../src/setup';
+import { assign, auth, ctx, move, newOrg, register, scenario, useApp } from './helpers';
 
-// Runs the real API against the local test database (see test/env.ts). Every test uses its own organisation,
-// so tests never interfere with each other and nothing is deleted.
-let app: INestApplication;
-let http: ReturnType<typeof request>;
-let n = 0;
+useApp();
 
-beforeAll(async () => {
-  const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  app = setup(mod.createNestApplication());
-  await app.init();
-  http = request(app.getHttpServer());
-});
-afterAll(() => app.close());
-
-const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
-
-async function register(role: 'account_manager' | 'engineer', organisation: string) {
-  const res = await http.post('/api/auth/register').send({
-    name: `${role} ${++n}`, email: `${role}${n}.${Date.now()}@example.test`, password: 'password123', role, organisation,
-  });
-  expect(res.status).toBe(201);
-  return res.body as { token: string; user: { id: string } };
-}
-
-/** A fresh organisation with an Account Manager, two engineers and one new request. */
-async function scenario() {
-  const org = `Org ${Date.now()}-${++n}`;
-  const am = await register('account_manager', org);
-  const eng = await register('engineer', org);
-  const other = await register('engineer', org);
-  const created = await http.post('/api/requests').set(auth(am.token)).send({
-    clientName: 'Ada Client', clientEmail: 'ada@client.example', clientCompany: 'Client Ltd', projectName: 'Edge cache PoC',
-    startDate: '2026-11-01', endDate: '2026-11-30', priority: 'high', resources: [{ type: 'Virtual machine', quantity: 2 }],
-  });
-  expect(created.status).toBe(201);
-  return { org, am, eng, other, id: created.body.id as string };
-}
-
-const move = (token: string, id: string, status: string, remarks?: string) =>
-  http.patch(`/api/requests/${id}/status`).set(auth(token)).send({ status, remarks });
-const assign = (token: string, id: string, engineerId: string) =>
-  http.patch(`/api/requests/${id}/assign`).set(auth(token)).send({ engineerId });
 type Entry = { message: string; action: string | null; fromValue: string | null; toValue: string | null; remarks: string | null; createdAt: string; actor: { id: string } };
 /** The request's latest audit entries, newest first, as returned with the request. */
-const entries = async (token: string, id: string) => (await http.get(`/api/requests/${id}`).set(auth(token))).body.activity as Entry[];
+const entries = async (token: string, id: string) => (await ctx.http.get(`/api/requests/${id}`).set(auth(token))).body.activity as Entry[];
 const activity = async (token: string, id: string) => (await entries(token, id)).map((a) => a.message);
 
 describe('existing behaviour (regression)', () => {
   it('registers, logs in and returns the current user', async () => {
-    const org = `Org ${Date.now()}-${++n}`;
+    const org = newOrg();
     const am = await register('account_manager', org);
-    const email = (await http.get('/api/auth/me').set(auth(am.token))).body.email;
-    const login = await http.post('/api/auth/login').send({ email, password: 'password123' });
+    const email = (await ctx.http.get('/api/auth/me').set(auth(am.token))).body.email;
+    const login = await ctx.http.post('/api/auth/login').send({ email, password: 'password123' });
     expect(login.status).toBe(201);
     expect(login.body.token).toBeTruthy();
-    expect((await http.post('/api/auth/login').send({ email, password: 'wrong-password' })).status).toBe(401);
+    expect((await ctx.http.post('/api/auth/login').send({ email, password: 'wrong-password' })).status).toBe(401);
   });
 
   it('allows one Account Manager per organisation', async () => {
-    const org = `Org ${Date.now()}-${++n}`;
+    const org = newOrg();
     await register('account_manager', org);
-    const res = await http.post('/api/auth/register').send({ name: 'Second', email: `dup${Date.now()}@example.test`, password: 'password123', role: 'account_manager', organisation: org });
+    const res = await ctx.http.post('/api/auth/register').send({ name: 'Second', email: `dup${Date.now()}@example.test`, password: 'password123', role: 'account_manager', organisation: org });
     expect(res.status).toBe(409);
   });
 
   it('creates, lists and shows requests; engineers cannot create; other organisations cannot see them', async () => {
     const s = await scenario();
-    const list = await http.get('/api/requests').set(auth(s.eng.token));
+    const list = await ctx.http.get('/api/requests').set(auth(s.eng.token));
     expect(list.body.map((r: { id: string }) => r.id)).toContain(s.id);
-    expect((await http.post('/api/requests').set(auth(s.eng.token)).send({})).status).toBe(403);
-    const outsider = await register('account_manager', `Org ${Date.now()}-${++n}`);
-    expect((await http.get(`/api/requests/${s.id}`).set(auth(outsider.token))).status).toBe(404);
-    expect((await http.get('/api/requests')).status).toBe(401);
+    expect((await ctx.http.post('/api/requests').set(auth(s.eng.token)).send({})).status).toBe(403);
+    const outsider = await register('account_manager', newOrg());
+    expect((await ctx.http.get(`/api/requests/${s.id}`).set(auth(outsider.token))).status).toBe(404);
+    expect((await ctx.http.get('/api/requests')).status).toBe(401);
   });
 });
 
@@ -108,7 +64,7 @@ describe('controlled workflow', () => {
     const s = await scenario();
     await assign(s.am.token, s.id, s.eng.user.id);
     expect((await move(s.other.token, s.id, 'provisioning')).status).toBe(403);
-    const asOther = await http.get(`/api/requests/${s.id}`).set(auth(s.other.token));
+    const asOther = await ctx.http.get(`/api/requests/${s.id}`).set(auth(s.other.token));
     expect(asOther.body.nextStatuses).toEqual([]);
     expect((await move(s.eng.token, s.id, 'provisioning')).status).toBe(200);
   });
@@ -161,10 +117,10 @@ describe('audit trail', () => {
   });
 
   it('logs creation and initial assignment as separate, ordered entries', async () => {
-    const org = `Org ${Date.now()}-${++n}`;
+    const org = newOrg();
     const am = await register('account_manager', org);
     const eng = await register('engineer', org);
-    const res = await http.post('/api/requests').set(auth(am.token)).send({
+    const res = await ctx.http.post('/api/requests').set(auth(am.token)).send({
       clientName: 'Ada Client', clientEmail: 'ada@client.example', clientCompany: 'Client Ltd', projectName: 'Assigned at creation',
       startDate: '2026-11-01', endDate: '2026-11-30', priority: 'low', resources: [{ type: 'Database', quantity: 1 }], assignedEngineerId: eng.user.id,
     });
@@ -174,7 +130,7 @@ describe('audit trail', () => {
   it('ignores actor and timestamp values sent by the browser', async () => {
     const s = await scenario();
     await assign(s.am.token, s.id, s.eng.user.id);
-    await http.patch(`/api/requests/${s.id}/status`).set(auth(s.eng.token))
+    await ctx.http.patch(`/api/requests/${s.id}/status`).set(auth(s.eng.token))
       .send({ status: 'provisioning', actor: { id: s.am.user.id }, createdAt: '2000-01-01T00:00:00Z', action: 'created' });
     const [latest] = await entries(s.am.token, s.id);
     expect(latest).toMatchObject({ action: 'status_changed', actor: { id: s.eng.user.id } });
@@ -185,22 +141,22 @@ describe('audit trail', () => {
     const s = await scenario();
     await assign(s.am.token, s.id, s.eng.user.id);
     await assign(s.am.token, s.id, s.other.user.id);
-    const page1 = await http.get(`/api/requests/${s.id}/activity?page=1&limit=2`).set(auth(s.eng.token));
-    const page2 = await http.get(`/api/requests/${s.id}/activity?page=2&limit=2`).set(auth(s.eng.token));
+    const page1 = await ctx.http.get(`/api/requests/${s.id}/activity?page=1&limit=2`).set(auth(s.eng.token));
+    const page2 = await ctx.http.get(`/api/requests/${s.id}/activity?page=2&limit=2`).set(auth(s.eng.token));
     expect(page1.body).toMatchObject({ total: 3, page: 1, limit: 2 });
     expect(page1.body.items.map((e: Entry) => e.action)).toEqual(['reassigned', 'assigned']);
     expect(page2.body.items.map((e: Entry) => e.action)).toEqual(['created']);
-    expect((await http.get(`/api/requests/${s.id}/activity?limit=500`).set(auth(s.am.token))).status).toBe(400);
-    const outsider = await register('account_manager', `Org ${Date.now()}-${++n}`);
-    expect((await http.get(`/api/requests/${s.id}/activity`).set(auth(outsider.token))).status).toBe(404);
+    expect((await ctx.http.get(`/api/requests/${s.id}/activity?limit=500`).set(auth(s.am.token))).status).toBe(400);
+    const outsider = await register('account_manager', newOrg());
+    expect((await ctx.http.get(`/api/requests/${s.id}/activity`).set(auth(outsider.token))).status).toBe(404);
   });
 
   it('has no API to edit or delete history', async () => {
     const s = await scenario();
     const [entry] = await entries(s.am.token, s.id);
     for (const path of [`/api/requests/${s.id}/activity`, `/api/requests/${s.id}/activity/${(entry as unknown as { id: string }).id}`]) {
-      expect((await http.delete(path).set(auth(s.am.token))).status).toBe(404);
-      expect((await http.patch(path).set(auth(s.am.token)).send({ message: 'edited' })).status).toBe(404);
+      expect((await ctx.http.delete(path).set(auth(s.am.token))).status).toBe(404);
+      expect((await ctx.http.patch(path).set(auth(s.am.token)).send({ message: 'edited' })).status).toBe(404);
     }
   });
 });

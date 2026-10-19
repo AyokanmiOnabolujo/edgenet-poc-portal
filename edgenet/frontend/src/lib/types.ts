@@ -17,7 +17,20 @@ export interface PocRequest {
   createdBy: User; assignedEngineer: User | null; createdAt: string;
   activity?: ActivityItem[]; activityTotal?: number; // latest entries only; older pages come from /requests/:id/activity
   nextStatuses: Transition[];
+  canAllocate?: boolean; canRelease?: boolean; // set on GET /requests/:id for the current user
 }
+export type ResourceState = 'available' | 'maintenance' | 'retired';
+/** An inventory item, with how many units are in use and free on every day of the requested window. */
+export interface InventoryItem {
+  id: string; name: string; type: string; unit: string; specs: string; capacity: number; state: ResourceState;
+  inUse: number; available: number;
+}
+export interface Allocation {
+  id: string; resource: Omit<InventoryItem, 'inUse' | 'available'>; quantity: number; startDate: string; endDate: string;
+  status: 'active' | 'released'; allocatedBy: User; createdAt: string; releasedBy: User | null; releasedAt: string | null;
+}
+/** Shape of a 409 from POST /requests/:id/allocations when there is not enough free capacity. */
+export interface AllocationConflict { request: string; projectName: string; startDate: string; endDate: string; quantity: number }
 export interface EngineerRow extends User { active: number; completed: number; total: number }
 export interface Report {
   total: number; active: number; completed: number; completionRate: number; unassigned: number;
@@ -32,7 +45,8 @@ export const STATUS_LABEL: Record<Status, string> = {
   completed: 'Completed', decommissioned: 'Decommissioned',
 };
 export const PRIORITY_LABEL: Record<Priority, string> = { low: 'Low', medium: 'Medium', high: 'High', critical: 'Critical' };
-export const RESOURCE_TYPES = ['Virtual machine', 'Kubernetes cluster', 'Storage volume', 'Network / VPN', 'Load balancer', 'GPU instance', 'Database', 'Other'];
+export const RESOURCE_TYPES = ['Virtual machine', 'Kubernetes cluster', 'Storage volume', 'Network / VPN', 'Load balancer', 'GPU instance', 'Database', 'Physical server', 'Software licence', 'Other'];
+export const RESOURCE_STATE_LABEL: Record<ResourceState, string> = { available: 'Available', maintenance: 'In maintenance', retired: 'Retired' };
 
 export const ref = (n: number) => `POC-${String(n).padStart(4, '0')}`;
 export const fmtDate = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });

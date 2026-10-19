@@ -19,10 +19,13 @@ const FLOW: Record<Status, { to: Status; needsReason?: boolean }[]> = {
   decommissioned: [],
 };
 
+/** Stages in which resources can still be allocated. Releasing is allowed at any stage. */
+export const ALLOCATABLE: Status[] = ['new_request', 'provisioning', 'testing'];
+
 export interface Transition { to: Status; needsReason: boolean; blocked: string | null }
 
-/** Account Managers can move any request in their organisation; engineers only the ones assigned to them. */
-export const canMove = (me: User, r: PocRequest) => me.role === 'account_manager' || r.assignedEngineer?.id === me.id;
+/** Account Managers can work on any request in their organisation (move it, allocate resources); engineers only on the ones assigned to them. */
+export const isResponsible = (me: User, r: PocRequest) => me.role === 'account_manager' || r.assignedEngineer?.id === me.id;
 
 /** Information a move needs before it is allowed: returns why the move is blocked, or null. */
 function blocker(r: PocRequest, to: Status): string | null {
@@ -32,11 +35,11 @@ function blocker(r: PocRequest, to: Status): string | null {
 
 /** The moves this user can make on this request right now, for the UI to offer. */
 export function nextStatuses(me: User, r: PocRequest): Transition[] {
-  if (!canMove(me, r)) return [];
+  if (!isResponsible(me, r)) return [];
   return FLOW[r.status].map((t) => ({ to: t.to, needsReason: !!t.needsReason, blocked: blocker(r, t.to) }));
 }
 
-/** Throws unless the request may move to `to`. Permission is checked separately with canMove. */
+/** Throws unless the request may move to `to`. Permission is checked separately with isResponsible. */
 export function checkTransition(r: PocRequest, to: Status, remarks?: string) {
   const t = FLOW[r.status].find((x) => x.to === to);
   if (!t) {

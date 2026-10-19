@@ -1,6 +1,6 @@
 import { defaults, types } from 'pg';
 import { DataSourceOptions } from 'typeorm';
-import { Activity, PocRequest, User } from './entities';
+import { Activity, Allocation, InventoryResource, PocRequest, User } from './entities';
 
 // createdAt/updatedAt are "timestamp without time zone" columns holding UTC (the database's now()). By default the pg
 // driver reads and writes them in the server's local time zone, which shifts every time on a machine not set to UTC.
@@ -16,7 +16,7 @@ defaults.parseInputDatesAsUTC = true;
 export const dbOptions = (url: string): DataSourceOptions => ({
   type: 'postgres',
   url,
-  entities: [User, PocRequest, Activity],
+  entities: [User, PocRequest, Activity, InventoryResource, Allocation],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
   migrationsRun: true,
   migrationsTransactionMode: 'each',

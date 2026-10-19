@@ -15,7 +15,8 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
   }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    throw new Error((Array.isArray(e.message) ? e.message.join(', ') : e.message) ?? 'Something went wrong. Try again.');
+    // Keep the response body so callers can show structured details, such as allocation conflicts.
+    throw Object.assign(new Error((Array.isArray(e.message) ? e.message.join(', ') : e.message) ?? 'Something went wrong. Try again.'), { body: e });
   }
   return res.json();
 }

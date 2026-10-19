@@ -28,7 +28,8 @@ Register an Account Manager (one allowed per organisation name), then register E
 |---|---|---|
 | Requests, board, details, settings | yes | yes |
 | Raise a request, assign/reassign engineer | yes | no |
-| Engineers page, Reports | yes | no |
+| Engineers page, Reports, Inventory | yes | no |
+| Allocate / release resources on a request | any request | only requests assigned to them |
 | Change a request's stage | any request | only requests assigned to them |
 
 ## Request workflow
@@ -58,6 +59,16 @@ docker stop edgenet-test-db
 
 The end-to-end tests refuse to run unless the database host is `localhost` or `127.0.0.1` (`backend/test/env.ts`), so they cannot touch a deployed database. Override the URL with `TEST_DATABASE_URL`.
 
+## Inventory and resource allocation
+
+The resource requirements on a request record what was **asked for**. Allocations record what has actually been **reserved** from the organisation's inventory.
+
+- **Inventory** (`Inventory` page, Account Manager only): each item has a type, a unit (server, seat, TB…) and a capacity, meaning how many units can be in use on the same day: 1 for an exclusive item such as a physical server, more for a pool such as licence seats. Items can be set to *in maintenance* or *retired* instead of being deleted, so past allocations keep their history. The inventory is maintained by hand; it is not connected to any real infrastructure platform.
+- **Allocating** (request page, Account Manager or the assigned engineer, while the request is New, Provisioning or Testing): pick an item, a quantity and dates, which default to the request's start and end dates. Both dates are inclusive, so a booking ending on the 10th clashes with one starting on the 10th but not one starting on the 11th.
+- **Conflict check** (server side): the API finds the busiest day in the requested window across the item's active allocations and refuses the booking if the quantity would exceed capacity on any day. It returns `409` with the free amount and the clashing bookings. The item's row is locked (`SELECT … FOR UPDATE`) for the check and insert, so simultaneous requests for the last unit cannot both succeed.
+- **Releasing** marks an allocation released, with who and when. Only an active allocation can be released, so repeating the call does nothing but return `409`. Free capacity is always worked out from active allocations, never stored as a counter, so it cannot drift.
+- Allocations and releases are written to the audit trail in the same transaction.
+
 ## Audit trail
 
 Every significant change to a request writes one row to `activity`: who did it (`actor`, taken from the login token), what happened (`action`: `created`, `status_changed`, `assigned`, `reassigned` or `unassigned`), the previous and new value (`fromValue`/`toValue`: a status, or an engineer's user id), an optional `remarks` (the reason for sending work back) and a server timestamp. The change and its row are saved in the same transaction, so a failed change leaves no row. There is no API to edit or delete these rows. `GET /requests/:id` includes the latest 20 entries and `activityTotal`; `GET /requests/:id/activity` pages through the rest, newest first. Rows written before this existed have `action: null` and keep their original message.
@@ -79,7 +90,9 @@ Timestamps are stored as UTC in `timestamp without time zone` columns; `backend/
 
 `POST /auth/register` `POST /auth/login` `GET /auth/me` Â·
 `GET /requests?status=` `GET /requests/report` `GET /requests/:id` `GET /requests/:id/activity?page=&limit=` `POST /requests` `PATCH /requests/:id/status` (`{ status, remarks? }`) `PATCH /requests/:id/assign` Â·
-`GET /users/engineers` `PATCH /users/me` `PATCH /users/me/password`
+`GET /users/engineers` `PATCH /users/me` `PATCH /users/me/password` ·
+`GET /resources?start=&end=` `POST /resources` `PATCH /resources/:id` ·
+`GET /requests/:id/allocations` `POST /requests/:id/allocations` `PATCH /requests/:id/allocations/:allocationId/release`
 
 ## Notes
 

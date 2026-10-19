@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { Allocations } from '@/components/Allocations';
 import { Alert, Avatar, Field, Icon, PriorityBadge, StatusBadge } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -29,6 +30,9 @@ export default function Details() {
     try { setR(await api<PocRequest>(`/requests/${id}/${path}`, { method: 'PATCH', body })); setOlder([]); }
     catch (e: any) { setError(e.message); }
   }
+
+  // Allocation changes add activity entries, so refresh the request after them.
+  const reload = () => api<PocRequest>(`/requests/${id}`).then((x) => { setR(x); setOlder([]); }).catch((e) => setError(e.message));
 
   async function loadOlder(loaded: number, pageSize: number) {
     try {
@@ -96,6 +100,8 @@ export default function Details() {
               </table>
             </div>
           </section>
+
+          <Allocations r={r} onChange={reload} />
         </div>
 
         <div className="space-y-6">

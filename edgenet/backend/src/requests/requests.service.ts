@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Activity, ActivityAction, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
 import { UsersService } from '../users/users.service';
+import { logActivity } from './audit';
 import { CreateRequestDto } from './dto';
-import { canMove, checkTransition, LABEL, nextStatuses } from './workflow';
+import { ALLOCATABLE, checkTransition, isResponsible, LABEL, nextStatuses } from './workflow';
 
 export const HISTORY_PAGE = 20;
 
@@ -35,7 +36,7 @@ export class RequestsService {
   async get(me: User, id: string) {
     const r = await this.find(me, id);
     const { items, total } = await this.history(id, 1, HISTORY_PAGE);
-    return Object.assign(r, { activity: items, activityTotal: total, nextStatuses: nextStatuses(me, r) });
+    return Object.assign(r, { activity: items, activityTotal: total, nextStatuses: nextStatuses(me, r), canAllocate: isResponsible(me, r) && ALLOCATABLE.includes(r.status), canRelease: isResponsible(me, r) });
   }
 
   /** One page of a request's audit trail, newest first. */
@@ -55,14 +56,6 @@ export class RequestsService {
     return { items, total, page, limit };
   }
 
-  /** Writes an audit row. Always called inside the transaction that makes the change, so both commit or neither does. */
-  private log(
-    m: EntityManager, requestId: string, actor: User, action: ActivityAction, message: string,
-    extra: { fromValue?: string | null; toValue?: string | null; remarks?: string | null } = {},
-  ) {
-    return m.save(m.create(Activity, { request: { id: requestId }, actor, action, message, ...extra }));
-  }
-
   private async engineer(me: User, id: string) {
     const e = await this.users.findOneBy({ id, organisation: me.organisation, role: 'engineer' });
     if (!e) throw new BadRequestException('Choose an engineer from your organisation.');
@@ -77,8 +70,8 @@ export class RequestsService {
       const r = await m.save(
         m.create(PocRequest, { ...data, description: data.description ?? '', organisation: me.organisation, createdBy: me, assignedEngineer: eng }),
       );
-      await this.log(m, r.id, me, 'created', `${me.name} raised this request.`, { toValue: r.status });
-      if (eng) await this.log(m, r.id, me, 'assigned', `${me.name} assigned ${eng.name}.`, { toValue: eng.id });
+      await logActivity(m, r.id, me, 'created', `${me.name} raised this request.`, { toValue: r.status });
+      if (eng) await logActivity(m, r.id, me, 'assigned', `${me.name} assigned ${eng.name}.`, { toValue: eng.id });
       return r.id;
     });
     return this.get(me, id);
@@ -86,14 +79,14 @@ export class RequestsService {
 
   async setStatus(me: User, id: string, status: Status, remarks?: string) {
     const r = await this.find(me, id);
-    if (!canMove(me, r)) throw new ForbiddenException('Only the assigned engineer can move this request.');
+    if (!isResponsible(me, r)) throw new ForbiddenException('Only the assigned engineer can move this request.');
     if (r.status === status) return this.get(me, id);
     checkTransition(r, status, remarks);
     await this.reqs.manager.transaction(async (m) => {
       // Only succeeds if nobody moved the request since we read it, so two concurrent moves cannot both apply.
       const res = await m.update(PocRequest, { id, status: r.status }, { status });
       if (!res.affected) throw new ConflictException('This request was just changed by someone else. Refresh and try again.');
-      await this.log(m, id, me, 'status_changed', `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.`, {
+      await logActivity(m, id, me, 'status_changed', `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.`, {
         fromValue: r.status, toValue: status, remarks: remarks?.trim() || null,
       });
     });
@@ -113,7 +106,7 @@ export class RequestsService {
       const [action, message]: [ActivityAction, string] = !eng
         ? ['unassigned', `${me.name} removed the assigned engineer.`]
         : prev ? ['reassigned', `${me.name} reassigned this request from ${prev.name} to ${eng.name}.`] : ['assigned', `${me.name} assigned ${eng.name}.`];
-      await this.log(m, id, me, action, message, { fromValue: prev?.id ?? null, toValue: eng?.id ?? null });
+      await logActivity(m, id, me, action, message, { fromValue: prev?.id ?? null, toValue: eng?.id ?? null });
     });
     return this.get(me, id);
   }

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { PocRequest, Status, User } from '../src/entities';
-import { canMove, checkTransition, nextStatuses } from '../src/requests/workflow';
+import { isResponsible, checkTransition, nextStatuses } from '../src/requests/workflow';
 
 const am = { id: 'am', role: 'account_manager' } as User;
 const eng = { id: 'eng', role: 'engineer' } as User;
@@ -29,9 +29,9 @@ describe('workflow', () => {
   });
 
   it('lets the Account Manager and the assigned engineer move, nobody else', () => {
-    expect(canMove(am, req('testing'))).toBe(true);
-    expect(canMove(eng, req('testing'))).toBe(true);
-    expect(canMove(other, req('testing'))).toBe(false);
+    expect(isResponsible(am, req('testing'))).toBe(true);
+    expect(isResponsible(eng, req('testing'))).toBe(true);
+    expect(isResponsible(other, req('testing'))).toBe(false);
     expect(nextStatuses(other, req('testing'))).toEqual([]);
   });
 
