@@ -18,14 +18,15 @@ export function Allocations({ r, onChange }: { r: PocRequest; onChange: () => vo
 
   const load = () => api<Allocation[]>(`/requests/${r.id}/allocations`).then(setRows).catch((e) => setError(e.message));
   useEffect(() => { load(); }, [r.id]);
-  useEffect(() => {
+  const loadInventory = () => {
     if (!r.canAllocate || !f.startDate || !f.endDate || f.endDate < f.startDate) return;
     api<InventoryItem[]>(`/resources?start=${f.startDate}&end=${f.endDate}`).then(setInventory).catch(() => {});
-  }, [r.canAllocate, f.startDate, f.endDate]);
+  };
+  useEffect(loadInventory, [r.canAllocate, f.startDate, f.endDate]);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true); setError(''); setConflicts([]);
-    try { await action(); await load(); onChange(); }
+    try { await action(); await load(); loadInventory(); onChange(); }
     catch (e: any) { setError(e.message); setConflicts(e.body?.conflicts ?? []); }
     setBusy(false);
   }

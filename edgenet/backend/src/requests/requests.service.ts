@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Activity, ActivityAction, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
+import { Activity, ActivityAction, DecommissionCheck, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
 import { UsersService } from '../users/users.service';
 import { logActivity } from './audit';
+import { CHECKLIST, closures, closureState, lockRequest } from './closure';
 import { CreateRequestDto } from './dto';
 import { ALLOCATABLE, checkTransition, isResponsible, LABEL, nextStatuses } from './workflow';
 
@@ -23,7 +24,8 @@ export class RequestsService {
       where: { organisation: me.organisation, ...(status ? { status } : {}) },
       order: { createdAt: 'DESC' },
     });
-    return rows.map((r) => ({ ...r, nextStatuses: nextStatuses(me, r) }));
+    const blocks = await closures(this.reqs.manager, rows.map((r) => r.id));
+    return rows.map((r) => ({ ...r, nextStatuses: nextStatuses(me, r, blocks.get(r.id)) }));
   }
 
   private async find(me: User, id: string) {
@@ -32,11 +34,21 @@ export class RequestsService {
     return r;
   }
 
-  /** The request with its latest activity (older entries come from activity()) and the moves this user can make. */
+  /** The request with its latest activity (older entries come from activity()), its decommissioning checklist,
+   *  and what this user can do with it. */
   async get(me: User, id: string) {
     const r = await this.find(me, id);
-    const { items, total } = await this.history(id, 1, HISTORY_PAGE);
-    return Object.assign(r, { activity: items, activityTotal: total, nextStatuses: nextStatuses(me, r), canAllocate: isResponsible(me, r) && ALLOCATABLE.includes(r.status), canRelease: isResponsible(me, r) });
+    const [{ items, total }, { items: checklist, closure }] = await Promise.all([
+      this.history(id, 1, HISTORY_PAGE), closureState(this.reqs.manager, id),
+    ]);
+    const responsible = isResponsible(me, r);
+    return Object.assign(r, {
+      activity: items, activityTotal: total, checklist,
+      nextStatuses: nextStatuses(me, r, closure),
+      canAllocate: responsible && ALLOCATABLE.includes(r.status),
+      canRelease: responsible,
+      canEditChecklist: responsible && r.status !== 'decommissioned',
+    });
   }
 
   /** One page of a request's audit trail, newest first. */
@@ -81,14 +93,39 @@ export class RequestsService {
     const r = await this.find(me, id);
     if (!isResponsible(me, r)) throw new ForbiddenException('Only the assigned engineer can move this request.');
     if (r.status === status) return this.get(me, id);
-    checkTransition(r, status, remarks);
     await this.reqs.manager.transaction(async (m) => {
-      // Only succeeds if nobody moved the request since we read it, so two concurrent moves cannot both apply.
-      const res = await m.update(PocRequest, { id, status: r.status }, { status });
-      if (!res.affected) throw new ConflictException('This request was just changed by someone else. Refresh and try again.');
-      await logActivity(m, id, me, 'status_changed', `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.`, {
-        fromValue: r.status, toValue: status, remarks: remarks?.trim() || null,
-      });
+      // With the request row locked, nobody can move it, allocate to it or change its checklist until we commit,
+      // so the checks below are made on exactly the state the move applies to.
+      if ((await lockRequest(m, id)) !== r.status) {
+        throw new ConflictException('This request was just changed by someone else. Refresh and try again.');
+      }
+      const t = checkTransition(me, r, status, (await closureState(m, id)).closure, remarks);
+      await m.update(PocRequest, { id }, { status });
+      const [action, message]: [ActivityAction, string] = t.cancel
+        ? ['cancelled', `${me.name} cancelled this PoC while it was in ${LABEL[r.status]} and moved it to ${LABEL[status]}.`]
+        : ['status_changed', `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.`];
+      await logActivity(m, id, me, action, message, { fromValue: r.status, toValue: status, remarks: remarks?.trim() || null });
+    });
+    return this.get(me, id);
+  }
+
+  /** Ticks or unticks one decommissioning task. Repeating the same tick or untick changes nothing and logs nothing. */
+  async setCheck(me: User, id: string, key: string, done: boolean, notes?: string) {
+    const r = await this.find(me, id);
+    if (!isResponsible(me, r)) throw new ForbiddenException('Only the Account Manager or the assigned engineer can update the checklist.');
+    const task = CHECKLIST.find((t) => t.key === key);
+    if (!task) throw new NotFoundException('There is no such checklist task.');
+    if (task.auto) throw new BadRequestException('This task completes itself once every allocated resource is released.');
+    await this.reqs.manager.transaction(async (m) => {
+      if ((await lockRequest(m, id)) === 'decommissioned') throw new ConflictException('This PoC is decommissioned; its checklist is closed.');
+      if (done) {
+        const res = await m.createQueryBuilder().insert().into(DecommissionCheck)
+          .values({ request: { id }, key, completedBy: me, notes: notes?.trim() || null }).orIgnore().execute();
+        if (res.raw.length) await logActivity(m, id, me, 'check_completed', `${me.name} completed "${task.label}".`, { toValue: key, remarks: notes?.trim() || null });
+      } else {
+        const res = await m.delete(DecommissionCheck, { request: { id }, key });
+        if (res.affected) await logActivity(m, id, me, 'check_reopened', `${me.name} reopened "${task.label}".`, { fromValue: key });
+      }
     });
     return this.get(me, id);
   }

@@ -1,4 +1,4 @@
-import { assign, auth, ctx, move, newOrg, register, scenario, useApp } from './helpers';
+import { assign, auth, closeOut, ctx, move, newOrg, register, scenario, useApp } from './helpers';
 
 useApp();
 
@@ -42,6 +42,7 @@ describe('controlled workflow', () => {
     expect((await move(s.am.token, s.id, 'provisioning')).status).toBe(400); // no engineer yet
     expect((await assign(s.am.token, s.id, s.eng.user.id)).status).toBe(200);
     for (const status of ['provisioning', 'testing', 'completed', 'decommissioned']) {
+      if (status === 'decommissioned') await closeOut(s.eng.token, s.id);
       const res = await move(s.eng.token, s.id, status);
       expect(res.status).toBe(200);
       expect(res.body.status).toBe(status);
@@ -90,7 +91,9 @@ describe('controlled workflow', () => {
   it('treats Decommissioned as final', async () => {
     const s = await scenario();
     await assign(s.am.token, s.id, s.eng.user.id);
-    for (const status of ['provisioning', 'testing', 'completed', 'decommissioned']) await move(s.am.token, s.id, status);
+    for (const status of ['provisioning', 'testing', 'completed']) await move(s.am.token, s.id, status);
+    await closeOut(s.am.token, s.id);
+    expect((await move(s.am.token, s.id, 'decommissioned')).status).toBe(200);
     expect((await move(s.am.token, s.id, 'new_request')).status).toBe(409);
   });
 });

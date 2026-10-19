@@ -5,7 +5,7 @@ import { Alert, Avatar, PriorityBadge, STATUS_STYLE } from '@/components/ui';
 import { PageTitle } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { PocRequest, ref, Status, statusBody, STATUSES, STATUS_LABEL } from '@/lib/types';
+import { PocRequest, ref, Status, statusBody, transitionLabel, STATUSES, STATUS_LABEL } from '@/lib/types';
 
 export default function Board() {
   const { user } = useAuth();
@@ -76,7 +76,7 @@ export default function Board() {
                     {movable(r) && (
                       <select aria-label={`Move ${r.projectName} to stage`} className="input mt-3 !py-1.5 text-xs" value={r.status} onChange={(e) => move(r.id, e.target.value as Status)}>
                         <option value={r.status}>{STATUS_LABEL[r.status]}</option>
-                        {r.nextStatuses.map((t) => <option key={t.to} value={t.to} disabled={!!t.blocked}>{STATUS_LABEL[t.to]}{t.blocked ? ' (blocked)' : ''}</option>)}
+                        {r.nextStatuses.map((t) => <option key={t.to} value={t.to} disabled={!!t.blocked}>{transitionLabel(t)}</option>)}
                       </select>
                     )}
                   </article>

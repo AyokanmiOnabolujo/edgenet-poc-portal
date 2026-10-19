@@ -5,7 +5,12 @@ export type Priority = 'low' | 'medium' | 'high' | 'critical';
 export interface User { id: string; name: string; email: string; role: Role; organisation: string }
 export interface Resource { type: string; quantity: number; notes?: string }
 /** A stage move the API says this user can make now. `blocked` explains why it cannot happen yet. */
-export interface Transition { to: Status; needsReason: boolean; blocked: string | null }
+export interface Transition { to: Status; needsReason: boolean; cancel: boolean; blocked: string | null }
+/** One decommissioning task. `auto` tasks complete themselves (all resources released). */
+export interface ChecklistItem {
+  key: string; label: string; mandatory: boolean; auto: boolean; done: boolean;
+  completedBy: User | null; completedAt: string | null; notes: string | null;
+}
 export interface ActivityItem {
   id: string; message: string; createdAt: string; actor?: User | null;
   action: string | null; fromValue: string | null; toValue: string | null; remarks: string | null;
@@ -17,7 +22,8 @@ export interface PocRequest {
   createdBy: User; assignedEngineer: User | null; createdAt: string;
   activity?: ActivityItem[]; activityTotal?: number; // latest entries only; older pages come from /requests/:id/activity
   nextStatuses: Transition[];
-  canAllocate?: boolean; canRelease?: boolean; // set on GET /requests/:id for the current user
+  // Set on GET /requests/:id, for the current user.
+  checklist?: ChecklistItem[]; canAllocate?: boolean; canRelease?: boolean; canEditChecklist?: boolean;
 }
 export type ResourceState = 'available' | 'maintenance' | 'retired';
 /** An inventory item, with how many units are in use and free on every day of the requested window. */
@@ -52,9 +58,14 @@ export const ref = (n: number) => `POC-${String(n).padStart(4, '0')}`;
 export const fmtDate = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 export const fmtDateTime = (d: string) => new Date(d).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-/** Body for a stage move, asking for a reason when the move needs one. Null means the user cancelled. */
+/** How a stage move is offered in a menu. */
+export const transitionLabel = (t: Transition) =>
+  `${t.cancel ? 'Cancel PoC → ' : ''}${STATUS_LABEL[t.to]}${t.blocked ? ' (blocked)' : ''}`;
+
+/** Body for a stage move, asking for a reason when the move needs one. Null means the user backed out. */
 export function statusBody(t: Transition): { status: Status; remarks?: string } | null {
   if (!t.needsReason) return { status: t.to };
-  const remarks = window.prompt(`Why is this request moving back to ${STATUS_LABEL[t.to]}?`)?.trim();
+  const question = t.cancel ? 'Why is this PoC being cancelled? It will be decommissioned.' : `Why is this request moving back to ${STATUS_LABEL[t.to]}?`;
+  const remarks = window.prompt(question)?.trim();
   return remarks ? { status: t.to, remarks } : null;
 }

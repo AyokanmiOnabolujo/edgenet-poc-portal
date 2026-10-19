@@ -1,6 +1,6 @@
 import {
   Check, Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany,
-  PrimaryGeneratedColumn, UpdateDateColumn,
+  PrimaryGeneratedColumn, Unique, UpdateDateColumn,
 } from 'typeorm';
 
 export type Role = 'account_manager' | 'engineer';
@@ -8,7 +8,8 @@ export const STATUSES = ['new_request', 'provisioning', 'testing', 'completed', 
 export type Status = (typeof STATUSES)[number];
 export const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 export type Priority = (typeof PRIORITIES)[number];
-export const ACTIONS = ['created', 'status_changed', 'assigned', 'reassigned', 'unassigned', 'resource_allocated', 'resource_released'] as const;
+export const ACTIONS = ['created', 'status_changed', 'assigned', 'reassigned', 'unassigned', 'resource_allocated', 'resource_released',
+  'cancelled', 'check_completed', 'check_reopened'] as const;
 export type ActivityAction = (typeof ACTIONS)[number];
 export const RESOURCE_STATES = ['available', 'maintenance', 'retired'] as const;
 export type ResourceState = (typeof RESOURCE_STATES)[number];
@@ -57,7 +58,8 @@ export class Activity {
   @ManyToOne(() => PocRequest, (r) => r.activity, { onDelete: 'CASCADE' }) request: PocRequest;
   @ManyToOne(() => User, { nullable: true }) actor: User;
   @Column({ type: 'varchar', nullable: true }) action: ActivityAction | null;
-  // Status changes: status values. Assignments: engineer user ids. Allocations: toValue is the allocation id.
+  // Status changes and cancellations: status values. Assignments: engineer user ids. Allocations: the allocation id.
+  // Checklist: toValue is the task key.
   @Column({ type: 'varchar', nullable: true }) fromValue: string | null;
   @Column({ type: 'varchar', nullable: true }) toValue: string | null;
   @Column({ type: 'text', nullable: true }) remarks: string | null;
@@ -101,4 +103,17 @@ export class Allocation {
   @CreateDateColumn() createdAt: Date;
   @ManyToOne(() => User, { eager: true, nullable: true }) releasedBy: User | null;
   @Column({ type: 'timestamp', nullable: true }) releasedAt: Date | null;
+}
+
+// A ticked task on a request's decommissioning checklist. The tasks themselves are defined in code
+// (requests/closure.ts); a row here means that task is done. Unticking deletes the row; both are in the audit trail.
+@Entity('decommission_checks')
+@Unique(['request', 'key'])
+export class DecommissionCheck {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @ManyToOne(() => PocRequest, { nullable: false }) request: PocRequest;
+  @Column() key: string;
+  @ManyToOne(() => User, { eager: true, nullable: false }) completedBy: User;
+  @CreateDateColumn({ default: () => 'clock_timestamp()' }) completedAt: Date;
+  @Column({ type: 'text', nullable: true }) notes: string | null;
 }

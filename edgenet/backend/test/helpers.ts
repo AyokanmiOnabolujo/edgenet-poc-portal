@@ -49,3 +49,12 @@ export const move = (token: string, id: string, status: string, remarks?: string
   ctx.http.patch(`/api/requests/${id}/status`).set(auth(token)).send({ status, remarks });
 export const assign = (token: string, id: string, engineerId: string) =>
   ctx.http.patch(`/api/requests/${id}/assign`).set(auth(token)).send({ engineerId });
+
+/** Ticks a decommissioning checklist task (or unticks it with done = false). */
+export const tick = (token: string, id: string, key: string, done = true, notes?: string) =>
+  ctx.http.patch(`/api/requests/${id}/checklist/${key}`).set(auth(token)).send({ done, notes });
+export const REQUIRED_TASKS = ['client_notified', 'access_revoked', 'data_handled'];
+/** Completes every hand-ticked required task so the request can be decommissioned. */
+export async function closeOut(token: string, id: string) {
+  for (const key of REQUIRED_TASKS) expect((await tick(token, id, key)).status).toBe(200);
+}

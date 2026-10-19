@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Allocations } from '@/components/Allocations';
+import { Checklist } from '@/components/Checklist';
 import { Alert, Avatar, Field, Icon, PriorityBadge, StatusBadge } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { ActivityItem, EngineerRow, fmtDate, fmtDateTime, PocRequest, ref, statusBody, STATUS_LABEL } from '@/lib/types';
+import { ActivityItem, EngineerRow, fmtDate, fmtDateTime, PocRequest, ref, statusBody, transitionLabel, STATUS_LABEL } from '@/lib/types';
 
 const dt = 'text-xs font-medium uppercase tracking-wider text-slate-400';
 const dd = 'mt-1 text-sm text-slate-800';
@@ -43,7 +44,7 @@ export default function Details() {
 
   if (!r) return error ? <Alert>{error}</Alert> : <div className="space-y-4" aria-busy="true"><div className="h-8 w-1/3 animate-pulse rounded-lg bg-slate-200/70" /><div className="h-64 animate-pulse rounded-2xl bg-slate-200/50" /></div>;
   const canMove = r.nextStatuses.length > 0;
-  const blocked = r.nextStatuses.find((t) => t.blocked)?.blocked;
+  const blocked = Array.from(new Set(r.nextStatuses.map((t) => t.blocked).filter(Boolean))).join(' ') || undefined;
   const hint = !canMove
     ? r.status === 'decommissioned' ? 'This is the final stage.' : 'Only the assigned engineer or the Account Manager can change the stage.'
     : blocked ?? undefined;
@@ -110,7 +111,7 @@ export default function Details() {
             <Field label="Status" htmlFor="st" hint={hint}>
               <select id="st" className="input" disabled={!canMove} value={r.status} onChange={(e) => move(e.target.value)}>
                 <option value={r.status}>{STATUS_LABEL[r.status]}</option>
-                {r.nextStatuses.map((t) => <option key={t.to} value={t.to} disabled={!!t.blocked}>{STATUS_LABEL[t.to]}{t.blocked ? ' (blocked)' : ''}</option>)}
+                {r.nextStatuses.map((t) => <option key={t.to} value={t.to} disabled={!!t.blocked}>{transitionLabel(t)}</option>)}
               </select>
             </Field>
             {isAM ? (
@@ -126,6 +127,8 @@ export default function Details() {
               </div>
             )}
           </section>
+
+          <Checklist r={r} onChange={reload} />
 
           <section className="card animate-slide-up p-6" style={{ animationDelay: '140ms' }}>
             <h2 className="mb-5 text-base font-semibold text-slate-900">Activity</h2>

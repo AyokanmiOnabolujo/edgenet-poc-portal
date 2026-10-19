@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { Allocation, InventoryResource, PocRequest, User } from '../entities';
 import { logActivity } from '../requests/audit';
+import { lockRequest } from '../requests/closure';
 import { ALLOCATABLE, isResponsible, LABEL } from '../requests/workflow';
 import { peakUsage } from './availability';
 import { AllocateDto, CreateResourceDto, UpdateResourceDto } from './dto';
@@ -79,6 +80,9 @@ export class ResourcesService {
     if (endDate < startDate) throw new BadRequestException('The end date must be on or after the start date.');
 
     const id = await this.reqs.manager.transaction(async (m) => {
+      // The request lock stops the request being closed while this allocation is made (see requests/closure.ts).
+      const status = await lockRequest(m, requestId);
+      if (!ALLOCATABLE.includes(status)) throw new ConflictException(`Resources cannot be allocated to a request in ${LABEL[status]}.`);
       // Lock the resource row: concurrent allocations of the same resource queue here, then each sees the others' bookings.
       const res = await m.findOne(InventoryResource, {
         where: { id: dto.resourceId, organisation: me.organisation }, lock: { mode: 'pessimistic_write' },
