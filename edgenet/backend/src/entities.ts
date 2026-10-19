@@ -8,6 +8,8 @@ export const STATUSES = ['new_request', 'provisioning', 'testing', 'completed', 
 export type Status = (typeof STATUSES)[number];
 export const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 export type Priority = (typeof PRIORITIES)[number];
+export const ACTIONS = ['created', 'status_changed', 'assigned', 'reassigned', 'unassigned'] as const;
+export type ActivityAction = (typeof ACTIONS)[number];
 
 @Entity('users')
 // Database-level guarantee: one Account Manager per organisation.
@@ -44,11 +46,20 @@ export class PocRequest {
   @UpdateDateColumn() updatedAt: Date;
 }
 
+// Audit trail: one row per significant change to a request. Rows are only ever inserted, never updated or deleted
+// by the app. The actor and time are set on the server. Rows written before the audit columns existed have action null.
 @Entity('activity')
+@Index(['request', 'createdAt'])
 export class Activity {
   @PrimaryGeneratedColumn('uuid') id: string;
   @ManyToOne(() => PocRequest, (r) => r.activity, { onDelete: 'CASCADE' }) request: PocRequest;
   @ManyToOne(() => User, { nullable: true }) actor: User;
+  @Column({ type: 'varchar', nullable: true }) action: ActivityAction | null;
+  // For status changes these are status values; for assignments, engineer user ids.
+  @Column({ type: 'varchar', nullable: true }) fromValue: string | null;
+  @Column({ type: 'varchar', nullable: true }) toValue: string | null;
+  @Column({ type: 'text', nullable: true }) remarks: string | null;
   @Column() message: string;
-  @CreateDateColumn() createdAt: Date;
+  // clock_timestamp(), not now(): several rows written in one transaction must still get distinct, ordered times.
+  @CreateDateColumn({ default: () => 'clock_timestamp()' }) createdAt: Date;
 }

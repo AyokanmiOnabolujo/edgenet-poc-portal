@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Avatar, Field, Icon, PriorityBadge, StatusBadge } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { EngineerRow, fmtDate, fmtDateTime, PocRequest, ref, statusBody, STATUS_LABEL } from '@/lib/types';
+import { ActivityItem, EngineerRow, fmtDate, fmtDateTime, PocRequest, ref, statusBody, STATUS_LABEL } from '@/lib/types';
 
 const dt = 'text-xs font-medium uppercase tracking-wider text-slate-400';
 const dd = 'mt-1 text-sm text-slate-800';
@@ -15,6 +15,7 @@ export default function Details() {
   const { user } = useAuth();
   const [r, setR] = useState<PocRequest | null>(null);
   const [engineers, setEngineers] = useState<EngineerRow[]>([]);
+  const [older, setOlder] = useState<ActivityItem[]>([]);
   const [error, setError] = useState('');
   const isAM = user?.role === 'account_manager';
 
@@ -25,8 +26,15 @@ export default function Details() {
 
   async function update(path: 'status' | 'assign', body: unknown) {
     setError('');
-    try { setR(await api<PocRequest>(`/requests/${id}/${path}`, { method: 'PATCH', body })); }
+    try { setR(await api<PocRequest>(`/requests/${id}/${path}`, { method: 'PATCH', body })); setOlder([]); }
     catch (e: any) { setError(e.message); }
+  }
+
+  async function loadOlder(loaded: number, pageSize: number) {
+    try {
+      const res = await api<{ items: ActivityItem[] }>(`/requests/${id}/activity?page=${loaded / pageSize + 1}&limit=${pageSize}`);
+      setOlder((o) => [...o, ...res.items]);
+    } catch (e: any) { setError(e.message); }
   }
 
   if (!r) return error ? <Alert>{error}</Alert> : <div className="space-y-4" aria-busy="true"><div className="h-8 w-1/3 animate-pulse rounded-lg bg-slate-200/70" /><div className="h-64 animate-pulse rounded-2xl bg-slate-200/50" /></div>;
@@ -35,6 +43,10 @@ export default function Details() {
   const hint = !canMove
     ? r.status === 'decommissioned' ? 'This is the final stage.' : 'Only the assigned engineer or the Account Manager can change the stage.'
     : blocked ?? undefined;
+  // The API sends newest first; the timeline reads oldest to newest, with earlier pages loaded on demand.
+  const latest = r.activity ?? [];
+  const loaded = latest.length + older.length;
+  const history = [...latest, ...older].reverse();
   function move(to: string) {
     const t = r!.nextStatuses.find((x) => x.to === to);
     const body = t && statusBody(t);
@@ -111,12 +123,16 @@ export default function Details() {
 
           <section className="card animate-slide-up p-6" style={{ animationDelay: '140ms' }}>
             <h2 className="mb-5 text-base font-semibold text-slate-900">Activity</h2>
+            {loaded < (r.activityTotal ?? 0) && (
+              <button type="button" className="link mb-4 text-sm" onClick={() => loadOlder(loaded, latest.length)}>Show earlier activity</button>
+            )}
             <ol className="relative ml-1.5 space-y-5 border-l border-slate-200 pl-6">
-              {(r.activity ?? []).map((a) => (
+              {history.map((a) => (
                 <li key={a.id} className="relative">
                   <span aria-hidden="true" className="absolute -left-[31px] top-1.5 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-white" />
                   <p className="text-sm leading-snug text-slate-700">{a.message}</p>
-                  <time className="text-xs text-slate-400">{fmtDateTime(a.createdAt)}</time>
+                  {a.remarks && <p className="mt-1 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">Reason: {a.remarks}</p>}
+                  <time dateTime={a.createdAt} className="text-xs text-slate-400">{fmtDateTime(a.createdAt)}</time>
                 </li>
               ))}
             </ol>

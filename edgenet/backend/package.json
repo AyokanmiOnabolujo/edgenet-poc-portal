@@ -9,7 +9,9 @@
     "start:prod": "node dist/main",
     "test": "jest --testPathIgnorePatterns e2e",
     "test:e2e": "jest e2e --runInBand",
-    "test:db": "docker run -d --rm --name edgenet-test-db -e POSTGRES_USER=edgenet -e POSTGRES_PASSWORD=edgenet -e POSTGRES_DB=edgenet_test -p 55433:5432 --tmpfs /var/lib/postgresql/data postgres:16"
+    "test:db": "docker run -d --rm --name edgenet-test-db -e POSTGRES_USER=edgenet -e POSTGRES_PASSWORD=edgenet -e POSTGRES_DB=edgenet_test -p 55433:5432 --tmpfs /var/lib/postgresql/data postgres:16",
+    "migration:generate": "nest build && typeorm migration:generate -d dist/data-source.js",
+    "migration:revert": "nest build && typeorm migration:revert -d dist/data-source.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

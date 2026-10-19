@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, IsArray, IsDateString, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested,
+  ArrayMinSize, IsArray, IsDateString, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { PRIORITIES, Priority, STATUSES, Status } from '../entities';
 
@@ -28,3 +28,7 @@ export class StatusDto {
   @IsOptional() @IsString() @MaxLength(500) remarks?: string;
 }
 export class AssignDto { @IsOptional() @IsUUID() engineerId?: string | null; }
+export class PageDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 20;
+}

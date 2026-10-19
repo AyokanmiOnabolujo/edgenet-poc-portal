@@ -46,8 +46,10 @@ const move = (token: string, id: string, status: string, remarks?: string) =>
   http.patch(`/api/requests/${id}/status`).set(auth(token)).send({ status, remarks });
 const assign = (token: string, id: string, engineerId: string) =>
   http.patch(`/api/requests/${id}/assign`).set(auth(token)).send({ engineerId });
-const activity = async (token: string, id: string) =>
-  ((await http.get(`/api/requests/${id}`).set(auth(token))).body.activity as { message: string }[]).map((a) => a.message);
+type Entry = { message: string; action: string | null; fromValue: string | null; toValue: string | null; remarks: string | null; createdAt: string; actor: { id: string } };
+/** The request's latest audit entries, newest first, as returned with the request. */
+const entries = async (token: string, id: string) => (await http.get(`/api/requests/${id}`).set(auth(token))).body.activity as Entry[];
+const activity = async (token: string, id: string) => (await entries(token, id)).map((a) => a.message);
 
 describe('existing behaviour (regression)', () => {
   it('registers, logs in and returns the current user', async () => {
@@ -118,7 +120,7 @@ describe('controlled workflow', () => {
     await move(s.eng.token, s.id, 'testing');
     expect((await move(s.eng.token, s.id, 'provisioning')).status).toBe(400);
     expect((await move(s.eng.token, s.id, 'provisioning', 'Load balancer misconfigured')).status).toBe(200);
-    expect((await activity(s.am.token, s.id))[0]).toMatch(/Reason: Load balancer misconfigured/);
+    expect((await entries(s.am.token, s.id))[0]).toMatchObject({ action: 'status_changed', fromValue: 'testing', toValue: 'provisioning', remarks: 'Load balancer misconfigured' });
   });
 
   it('applies only one of several simultaneous moves', async () => {
@@ -134,5 +136,71 @@ describe('controlled workflow', () => {
     await assign(s.am.token, s.id, s.eng.user.id);
     for (const status of ['provisioning', 'testing', 'completed', 'decommissioned']) await move(s.am.token, s.id, status);
     expect((await move(s.am.token, s.id, 'new_request')).status).toBe(409);
+  });
+});
+
+describe('audit trail', () => {
+  it('records creation, assignment and moves with actor, values and server time, oldest first in time', async () => {
+    const s = await scenario();
+    const before = Date.now();
+    await assign(s.am.token, s.id, s.eng.user.id);
+    await assign(s.am.token, s.id, s.other.user.id);
+    await assign(s.am.token, s.id, s.other.user.id); // no change: not logged
+    await move(s.other.token, s.id, 'provisioning');
+    const log = (await entries(s.am.token, s.id)).reverse();
+    expect(log.map((e) => [e.action, e.fromValue, e.toValue])).toEqual([
+      ['created', null, 'new_request'],
+      ['assigned', null, s.eng.user.id],
+      ['reassigned', s.eng.user.id, s.other.user.id],
+      ['status_changed', 'new_request', 'provisioning'],
+    ]);
+    expect(log.map((e) => e.actor.id)).toEqual([s.am.user.id, s.am.user.id, s.am.user.id, s.other.user.id]);
+    const times = log.map((e) => new Date(e.createdAt).getTime());
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+    expect(times[3]).toBeGreaterThanOrEqual(before - 60_000);
+  });
+
+  it('logs creation and initial assignment as separate, ordered entries', async () => {
+    const org = `Org ${Date.now()}-${++n}`;
+    const am = await register('account_manager', org);
+    const eng = await register('engineer', org);
+    const res = await http.post('/api/requests').set(auth(am.token)).send({
+      clientName: 'Ada Client', clientEmail: 'ada@client.example', clientCompany: 'Client Ltd', projectName: 'Assigned at creation',
+      startDate: '2026-11-01', endDate: '2026-11-30', priority: 'low', resources: [{ type: 'Database', quantity: 1 }], assignedEngineerId: eng.user.id,
+    });
+    expect(res.body.activity.map((e: Entry) => e.action)).toEqual(['assigned', 'created']);
+  });
+
+  it('ignores actor and timestamp values sent by the browser', async () => {
+    const s = await scenario();
+    await assign(s.am.token, s.id, s.eng.user.id);
+    await http.patch(`/api/requests/${s.id}/status`).set(auth(s.eng.token))
+      .send({ status: 'provisioning', actor: { id: s.am.user.id }, createdAt: '2000-01-01T00:00:00Z', action: 'created' });
+    const [latest] = await entries(s.am.token, s.id);
+    expect(latest).toMatchObject({ action: 'status_changed', actor: { id: s.eng.user.id } });
+    expect(new Date(latest.createdAt).getFullYear()).toBeGreaterThan(2000);
+  });
+
+  it('pages through history and hides it from other organisations', async () => {
+    const s = await scenario();
+    await assign(s.am.token, s.id, s.eng.user.id);
+    await assign(s.am.token, s.id, s.other.user.id);
+    const page1 = await http.get(`/api/requests/${s.id}/activity?page=1&limit=2`).set(auth(s.eng.token));
+    const page2 = await http.get(`/api/requests/${s.id}/activity?page=2&limit=2`).set(auth(s.eng.token));
+    expect(page1.body).toMatchObject({ total: 3, page: 1, limit: 2 });
+    expect(page1.body.items.map((e: Entry) => e.action)).toEqual(['reassigned', 'assigned']);
+    expect(page2.body.items.map((e: Entry) => e.action)).toEqual(['created']);
+    expect((await http.get(`/api/requests/${s.id}/activity?limit=500`).set(auth(s.am.token))).status).toBe(400);
+    const outsider = await register('account_manager', `Org ${Date.now()}-${++n}`);
+    expect((await http.get(`/api/requests/${s.id}/activity`).set(auth(outsider.token))).status).toBe(404);
+  });
+
+  it('has no API to edit or delete history', async () => {
+    const s = await scenario();
+    const [entry] = await entries(s.am.token, s.id);
+    for (const path of [`/api/requests/${s.id}/activity`, `/api/requests/${s.id}/activity/${(entry as unknown as { id: string }).id}`]) {
+      expect((await http.delete(path).set(auth(s.am.token))).status).toBe(404);
+      expect((await http.patch(path).set(auth(s.am.token)).send({ message: 'edited' })).status).toBe(404);
+    }
   });
 });

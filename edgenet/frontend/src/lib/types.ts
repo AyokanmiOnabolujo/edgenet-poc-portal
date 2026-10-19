@@ -6,12 +6,16 @@ export interface User { id: string; name: string; email: string; role: Role; org
 export interface Resource { type: string; quantity: number; notes?: string }
 /** A stage move the API says this user can make now. `blocked` explains why it cannot happen yet. */
 export interface Transition { to: Status; needsReason: boolean; blocked: string | null }
-export interface ActivityItem { id: string; message: string; createdAt: string; actor?: User | null }
+export interface ActivityItem {
+  id: string; message: string; createdAt: string; actor?: User | null;
+  action: string | null; fromValue: string | null; toValue: string | null; remarks: string | null;
+}
 export interface PocRequest {
   id: string; number: number; clientName: string; clientEmail: string; clientCompany: string;
   projectName: string; description: string; startDate: string; endDate: string;
   priority: Priority; status: Status; resources: Resource[];
-  createdBy: User; assignedEngineer: User | null; createdAt: string; activity?: ActivityItem[];
+  createdBy: User; assignedEngineer: User | null; createdAt: string;
+  activity?: ActivityItem[]; activityTotal?: number; // latest entries only; older pages come from /requests/:id/activity
   nextStatuses: Transition[];
 }
 export interface EngineerRow extends User { active: number; completed: number; total: number }

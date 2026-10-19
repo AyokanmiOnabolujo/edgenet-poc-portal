@@ -9,7 +9,7 @@ Next.js 14 + Tailwind CSS 3 (frontend) · NestJS 10 (API) · PostgreSQL 16 (data
    ```
    cd backend && cp .env.example .env && npm install && npm run start:dev
    ```
-   Runs on http://localhost:4000/api. Tables are created automatically on first start.
+   Runs on http://localhost:4000/api. Pending database migrations run automatically on start (see Database migrations).
 3. Web:
    ```
    cd frontend && cp .env.local.example .env.local && npm install && npm run dev
@@ -58,14 +58,30 @@ docker stop edgenet-test-db
 
 The end-to-end tests refuse to run unless the database host is `localhost` or `127.0.0.1` (`backend/test/env.ts`), so they cannot touch a deployed database. Override the URL with `TEST_DATABASE_URL`.
 
+## Audit trail
+
+Every significant change to a request writes one row to `activity`: who did it (`actor`, taken from the login token), what happened (`action`: `created`, `status_changed`, `assigned`, `reassigned` or `unassigned`), the previous and new value (`fromValue`/`toValue`: a status, or an engineer's user id), an optional `remarks` (the reason for sending work back) and a server timestamp. The change and its row are saved in the same transaction, so a failed change leaves no row. There is no API to edit or delete these rows. `GET /requests/:id` includes the latest 20 entries and `activityTotal`; `GET /requests/:id/activity` pages through the rest, newest first. Rows written before this existed have `action: null` and keep their original message.
+
+## Database migrations
+
+Schema changes live in `backend/src/migrations` and run in a transaction each time the API starts, so a Render deploy applies them with no extra step. `synchronize` is off: it changed the live schema without review and could drop columns.
+
+- The first migration, `Baseline`, is the schema the app had while it used `synchronize`. On a database that already has the tables (production) it does nothing except record itself; on an empty database it creates them. It refuses to be reverted.
+- After changing an entity, generate a migration against a local database that is up to date, then read the SQL before committing it:
+  ```
+  DATABASE_URL=postgres://...local... npm run migration:generate -- src/migrations/DescribeTheChange
+  ```
+- Roll back the latest migration with `npm run migration:revert` (with `DATABASE_URL` set). Do this against production only deliberately: a migration's `down` can drop the columns it added.
+
+Timestamps are stored as UTC in `timestamp without time zone` columns; `backend/src/db.ts` makes the pg driver read and write them as UTC so they are right on machines in other time zones.
+
 ## API
 
 `POST /auth/register` `POST /auth/login` `GET /auth/me` ·
-`GET /requests?status=` `GET /requests/report` `GET /requests/:id` `POST /requests` `PATCH /requests/:id/status` (`{ status, remarks? }`) `PATCH /requests/:id/assign` ·
+`GET /requests?status=` `GET /requests/report` `GET /requests/:id` `GET /requests/:id/activity?page=&limit=` `POST /requests` `PATCH /requests/:id/status` (`{ status, remarks? }`) `PATCH /requests/:id/assign` ·
 `GET /users/engineers` `PATCH /users/me` `PATCH /users/me/password`
 
 ## Notes
 
-- `synchronize: true` in `backend/src/app.module.ts` auto-syncs the schema. Switch to TypeORM migrations before production.
 - The one-Account-Manager rule is enforced in the service and by a partial unique index in PostgreSQL.
 - Everything is scoped by organisation, so separate organisations never see each other's data.

@@ -1,10 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Activity, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
+import { EntityManager, Repository } from 'typeorm';
+import { Activity, ActivityAction, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
 import { UsersService } from '../users/users.service';
 import { CreateRequestDto } from './dto';
 import { canMove, checkTransition, LABEL, nextStatuses } from './workflow';
+
+export const HISTORY_PAGE = 20;
 
 @Injectable()
 export class RequestsService {
@@ -23,18 +25,42 @@ export class RequestsService {
     return rows.map((r) => ({ ...r, nextStatuses: nextStatuses(me, r) }));
   }
 
-  async get(me: User, id: string) {
-    const r = await this.reqs.findOne({
-      where: { id, organisation: me.organisation },
-      relations: { activity: { actor: true } },
-    });
+  private async find(me: User, id: string) {
+    const r = await this.reqs.findOne({ where: { id, organisation: me.organisation } });
     if (!r) throw new NotFoundException('PoC request not found.');
-    r.activity.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    return Object.assign(r, { nextStatuses: nextStatuses(me, r) });
+    return r;
   }
 
-  private log(request: PocRequest, actor: User, message: string) {
-    return this.acts.save(this.acts.create({ request, actor, message }));
+  /** The request with its latest activity (older entries come from activity()) and the moves this user can make. */
+  async get(me: User, id: string) {
+    const r = await this.find(me, id);
+    const { items, total } = await this.history(id, 1, HISTORY_PAGE);
+    return Object.assign(r, { activity: items, activityTotal: total, nextStatuses: nextStatuses(me, r) });
+  }
+
+  /** One page of a request's audit trail, newest first. */
+  async activity(me: User, id: string, page: number, limit: number) {
+    await this.find(me, id);
+    return this.history(id, page, limit);
+  }
+
+  private async history(id: string, page: number, limit: number) {
+    const [items, total] = await this.acts.findAndCount({
+      where: { request: { id } },
+      relations: { actor: true },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { items, total, page, limit };
+  }
+
+  /** Writes an audit row. Always called inside the transaction that makes the change, so both commit or neither does. */
+  private log(
+    m: EntityManager, requestId: string, actor: User, action: ActivityAction, message: string,
+    extra: { fromValue?: string | null; toValue?: string | null; remarks?: string | null } = {},
+  ) {
+    return m.save(m.create(Activity, { request: { id: requestId }, actor, action, message, ...extra }));
   }
 
   private async engineer(me: User, id: string) {
@@ -47,40 +73,48 @@ export class RequestsService {
     if (dto.endDate < dto.startDate) throw new BadRequestException('End date must be on or after the start date.');
     const eng = dto.assignedEngineerId ? await this.engineer(me, dto.assignedEngineerId) : null;
     const { assignedEngineerId, ...data } = dto;
-    const r = await this.reqs.save(
-      this.reqs.create({ ...data, description: data.description ?? '', organisation: me.organisation, createdBy: me, assignedEngineer: eng }),
-    );
-    await this.log(r, me, `${me.name} raised this request.`);
-    if (eng) await this.log(r, me, `${me.name} assigned ${eng.name}.`);
-    return this.get(me, r.id);
+    const id = await this.reqs.manager.transaction(async (m) => {
+      const r = await m.save(
+        m.create(PocRequest, { ...data, description: data.description ?? '', organisation: me.organisation, createdBy: me, assignedEngineer: eng }),
+      );
+      await this.log(m, r.id, me, 'created', `${me.name} raised this request.`, { toValue: r.status });
+      if (eng) await this.log(m, r.id, me, 'assigned', `${me.name} assigned ${eng.name}.`, { toValue: eng.id });
+      return r.id;
+    });
+    return this.get(me, id);
   }
 
   async setStatus(me: User, id: string, status: Status, remarks?: string) {
-    const r = await this.get(me, id);
+    const r = await this.find(me, id);
     if (!canMove(me, r)) throw new ForbiddenException('Only the assigned engineer can move this request.');
-    if (r.status === status) return r;
+    if (r.status === status) return this.get(me, id);
     checkTransition(r, status, remarks);
-    const reason = remarks?.trim() ? ` Reason: ${remarks.trim()}` : '';
     await this.reqs.manager.transaction(async (m) => {
       // Only succeeds if nobody moved the request since we read it, so two concurrent moves cannot both apply.
       const res = await m.update(PocRequest, { id, status: r.status }, { status });
       if (!res.affected) throw new ConflictException('This request was just changed by someone else. Refresh and try again.');
-      await m.save(m.create(Activity, { request: { id }, actor: me, message: `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.${reason}` }));
+      await this.log(m, id, me, 'status_changed', `${me.name} moved this request from ${LABEL[r.status]} to ${LABEL[status]}.`, {
+        fromValue: r.status, toValue: status, remarks: remarks?.trim() || null,
+      });
     });
     return this.get(me, id);
   }
 
   async assign(me: User, id: string, engineerId?: string | null) {
-    const r = await this.get(me, id);
+    const r = await this.find(me, id);
     const eng = engineerId ? await this.engineer(me, engineerId) : null;
-    await this.reqs.save({ id, assignedEngineer: eng });
     const prev = r.assignedEngineer;
-    await this.log(
-      r, me,
-      eng
-        ? prev ? `${me.name} reassigned this request from ${prev.name} to ${eng.name}.` : `${me.name} assigned ${eng.name}.`
-        : `${me.name} removed the assigned engineer.`,
-    );
+    if ((prev?.id ?? null) === (eng?.id ?? null)) return this.get(me, id);
+    await this.reqs.manager.transaction(async (m) => {
+      // Same guard as setStatus: the "previous engineer" in the audit row must be the one actually replaced.
+      const res = await m.createQueryBuilder().update(PocRequest).set({ assignedEngineer: eng ?? null }).where('id = :id', { id })
+        .andWhere(prev ? '"assignedEngineerId" = :prev' : '"assignedEngineerId" IS NULL', { prev: prev?.id }).execute();
+      if (!res.affected) throw new ConflictException('This request was just changed by someone else. Refresh and try again.');
+      const [action, message]: [ActivityAction, string] = !eng
+        ? ['unassigned', `${me.name} removed the assigned engineer.`]
+        : prev ? ['reassigned', `${me.name} reassigned this request from ${prev.name} to ${eng.name}.`] : ['assigned', `${me.name} assigned ${eng.name}.`];
+      await this.log(m, id, me, action, message, { fromValue: prev?.id ?? null, toValue: eng?.id ?? null });
+    });
     return this.get(me, id);
   }
 
