@@ -3,6 +3,7 @@
 **/dist/
 **/build/
 **/.next/
+*.tsbuildinfo
 
 # Environment variables & sensitive info
 **/.env

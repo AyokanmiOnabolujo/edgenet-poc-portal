@@ -20,17 +20,23 @@ export default function Register() {
   const [f, setF] = useState({ name: '', email: '', password: '', organisation: '', role: 'engineer' as Role });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
   useEffect(() => { if (user) router.replace('/dashboard'); }, [user, router]);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
-    try { await register(f); router.replace('/dashboard'); }
-    catch (err: any) { setError(err.message); setBusy(false); }
+    try {
+      const wait = await register(f);
+      if (wait) { setPending(wait); setBusy(false); } else router.replace('/dashboard');
+    } catch (err: any) { setError(err.message); setBusy(false); }
   }
 
   return (
     <LoginShell title="Create your account" subtitle="Join your organisation on EdgeNet.">
+      {pending ? (
+        <Alert kind="success">Account created. {pending} You can sign in once they have approved it.</Alert>
+      ) : (
       <form onSubmit={submit} className={styles.form}>
         {error && <Alert>{error}</Alert>}
         
@@ -68,7 +74,7 @@ export default function Register() {
               </label>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-500">One Account Manager per organisation, unlimited Engineers.</p>
+          <p className="mt-2 text-xs text-slate-500">One Account Manager per organisation. Engineers can sign in once the Account Manager approves them.</p>
         </fieldset>
 
         <button className={styles.submit} disabled={busy}>
@@ -76,6 +82,7 @@ export default function Register() {
           {busy ? 'Creating account…' : 'Create account'}
         </button>
       </form>
+      )}
       
       <p className={styles.register}>
         Already registered? <Link href="/login" className={styles.registerLink}>Sign in</Link>

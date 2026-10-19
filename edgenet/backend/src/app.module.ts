@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import { dbOptions } from './db';
 import { RequestsModule } from './requests/requests.module';
+import { ResourcesModule } from './resources/resources.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -10,17 +12,12 @@ import { UsersModule } from './users/users.module';
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (c: ConfigService) => ({
-        type: 'postgres' as const,
-        url: c.get('DATABASE_URL'),
-        autoLoadEntities: true,
-        // Creates/updates tables automatically. Switch to migrations before production.
-        synchronize: true,
-      }),
+      useFactory: (c: ConfigService) => dbOptions(c.get('DATABASE_URL')),
     }),
     AuthModule,
     UsersModule,
     RequestsModule,
+    ResourcesModule,
   ],
 })
 export class AppModule {}

@@ -1,6 +1,6 @@
 import {
-  Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany,
-  PrimaryGeneratedColumn, UpdateDateColumn,
+  Check, Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany,
+  PrimaryGeneratedColumn, Unique, UpdateDateColumn,
 } from 'typeorm';
 
 export type Role = 'account_manager' | 'engineer';
@@ -8,6 +8,11 @@ export const STATUSES = ['new_request', 'provisioning', 'testing', 'completed', 
 export type Status = (typeof STATUSES)[number];
 export const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 export type Priority = (typeof PRIORITIES)[number];
+export const ACTIONS = ['created', 'status_changed', 'assigned', 'reassigned', 'unassigned', 'resource_allocated', 'resource_released',
+  'cancelled', 'check_completed', 'check_reopened'] as const;
+export type ActivityAction = (typeof ACTIONS)[number];
+export const RESOURCE_STATES = ['available', 'maintenance', 'retired'] as const;
+export type ResourceState = (typeof RESOURCE_STATES)[number];
 
 @Entity('users')
 // Database-level guarantee: one Account Manager per organisation.
@@ -19,6 +24,9 @@ export class User {
   @Column({ select: false }) passwordHash: string;
   @Column({ type: 'varchar' }) role: Role;
   @Column() organisation: string;
+  // Engineers register unapproved and cannot sign in until their organisation's Account Manager approves them.
+  // Defaults to true so accounts created before approval existed keep working.
+  @Column({ default: true }) approved: boolean;
   @CreateDateColumn() createdAt: Date;
 }
 
@@ -44,11 +52,71 @@ export class PocRequest {
   @UpdateDateColumn() updatedAt: Date;
 }
 
+// Audit trail: one row per significant change to a request. Rows are only ever inserted, never updated or deleted
+// by the app. The actor and time are set on the server. Rows written before the audit columns existed have action null.
 @Entity('activity')
+@Index(['request', 'createdAt'])
 export class Activity {
   @PrimaryGeneratedColumn('uuid') id: string;
   @ManyToOne(() => PocRequest, (r) => r.activity, { onDelete: 'CASCADE' }) request: PocRequest;
   @ManyToOne(() => User, { nullable: true }) actor: User;
+  @Column({ type: 'varchar', nullable: true }) action: ActivityAction | null;
+  // Status changes and cancellations: status values. Assignments: engineer user ids. Allocations: the allocation id.
+  // Checklist: toValue is the task key.
+  @Column({ type: 'varchar', nullable: true }) fromValue: string | null;
+  @Column({ type: 'varchar', nullable: true }) toValue: string | null;
+  @Column({ type: 'text', nullable: true }) remarks: string | null;
   @Column() message: string;
+  // clock_timestamp(), not now(): several rows written in one transaction must still get distinct, ordered times.
+  @CreateDateColumn({ default: () => 'clock_timestamp()' }) createdAt: Date;
+}
+
+// Something the organisation can lend to PoCs, entered by hand by the Account Manager. It is not connected to real
+// infrastructure. capacity is how many units can be in use on the same day: 1 for an exclusive item such as a
+// physical server, more for a pool such as licence seats or TB of storage. Retire items instead of deleting them.
+@Entity('inventory_resources')
+@Check(`"capacity" >= 1`)
+export class InventoryResource {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column() organisation: string;
+  @Column() name: string;
+  @Column() type: string;
+  @Column({ default: 'unit' }) unit: string;
+  @Column({ type: 'text', default: '' }) specs: string;
+  @Column({ type: 'int' }) capacity: number;
+  @Column({ type: 'varchar', default: 'available' }) state: ResourceState;
   @CreateDateColumn() createdAt: Date;
+}
+
+// Some of a resource's capacity reserved for one PoC over inclusive dates. Free capacity is always worked out from
+// active allocations, never stored as a counter, so it cannot drift out of step with them.
+@Entity('allocations')
+@Check(`"quantity" >= 1`)
+@Check(`"endDate" >= "startDate"`)
+@Index(['resource', 'status'])
+export class Allocation {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @ManyToOne(() => InventoryResource, { eager: true, nullable: false }) resource: InventoryResource;
+  @ManyToOne(() => PocRequest, { nullable: false }) request: PocRequest;
+  @Column({ type: 'int' }) quantity: number;
+  @Column({ type: 'date' }) startDate: string;
+  @Column({ type: 'date' }) endDate: string;
+  @Column({ type: 'varchar', default: 'active' }) status: 'active' | 'released';
+  @ManyToOne(() => User, { eager: true, nullable: false }) allocatedBy: User;
+  @CreateDateColumn() createdAt: Date;
+  @ManyToOne(() => User, { eager: true, nullable: true }) releasedBy: User | null;
+  @Column({ type: 'timestamp', nullable: true }) releasedAt: Date | null;
+}
+
+// A ticked task on a request's decommissioning checklist. The tasks themselves are defined in code
+// (requests/closure.ts); a row here means that task is done. Unticking deletes the row; both are in the audit trail.
+@Entity('decommission_checks')
+@Unique(['request', 'key'])
+export class DecommissionCheck {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @ManyToOne(() => PocRequest, { nullable: false }) request: PocRequest;
+  @Column() key: string;
+  @ManyToOne(() => User, { eager: true, nullable: false }) completedBy: User;
+  @CreateDateColumn({ default: () => 'clock_timestamp()' }) completedAt: Date;
+  @Column({ type: 'text', nullable: true }) notes: string | null;
 }

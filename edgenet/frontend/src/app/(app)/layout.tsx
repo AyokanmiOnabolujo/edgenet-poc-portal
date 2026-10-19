@@ -11,6 +11,7 @@ const LINKS: { href: string; label: string; icon: IconName; am?: boolean }[] = [
   { href: '/kanban', label: 'Board', icon: 'board' },
   { href: '/requests/new', label: 'New request', icon: 'plus', am: true },
   { href: '/engineers', label: 'Engineers', icon: 'users', am: true },
+  { href: '/resources', label: 'Inventory', icon: 'server', am: true },
   { href: '/reports', label: 'Reports', icon: 'chart', am: true },
   { href: '/settings', label: 'Settings', icon: 'sliders' },
 ];

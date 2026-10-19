@@ -1,4 +1,4 @@
-import { Priority, PRIORITY_LABEL, Status, STATUSES, STATUS_LABEL } from '@/lib/types';
+import { Deadline, Priority, PRIORITY_LABEL, Status, STATUSES, STATUS_LABEL } from '@/lib/types';
 
 /* ---------- icons ---------- */
 const PATHS = {
@@ -51,6 +51,18 @@ export const PRIORITY_STYLE: Record<Priority, { icon: IconName; badge: string; d
 };
 
 const pill = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset';
+/** Overdue / due soon / late start, from the deadline the API attaches to each request. Renders nothing when on track. */
+export function DeadlineBadge({ d }: { d?: Deadline }) {
+  if (!d || d.daysLeft === null) return null;
+  const n = Math.abs(d.daysLeft);
+  const days = `${n} day${n === 1 ? '' : 's'}`;
+  const tags: { text: string; style: string }[] = [];
+  if (d.overdue) tags.push({ text: `${days} overdue`, style: 'bg-rose-50 text-rose-700 ring-rose-600/25' });
+  else if (d.dueSoon) tags.push({ text: d.daysLeft === 0 ? 'Due today' : `Due in ${days}`, style: 'bg-amber-50 text-amber-800 ring-amber-600/25' });
+  if (d.lateStart) tags.push({ text: 'Not started', style: 'bg-orange-50 text-orange-700 ring-orange-600/25' });
+  return <>{tags.map((t) => <span key={t.text} className={`${pill} ${t.style}`}><Icon name="alert" className="h-3.5 w-3.5" />{t.text}</span>)}</>;
+}
+
 export function StatusBadge({ status }: { status: Status }) {
   const s = STATUS_STYLE[status];
   return <span className={`${pill} ${s.badge}`}><Icon name={s.icon} className="h-3.5 w-3.5" />{STATUS_LABEL[status]}</span>;

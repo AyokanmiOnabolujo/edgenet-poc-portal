@@ -1,8 +1,9 @@
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, IsArray, IsDateString, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min, ValidateNested,
+  ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { PRIORITIES, Priority, STATUSES, Status } from '../entities';
+import { IsDay } from '../resources/dto';
 
 export class ResourceDto {
   @IsString() @IsNotEmpty() type: string;
@@ -23,5 +24,22 @@ export class CreateRequestDto {
   @IsOptional() @IsUUID() assignedEngineerId?: string;
 }
 
-export class StatusDto { @IsIn(STATUSES) status: Status; }
+export class StatusDto {
+  @IsIn(STATUSES) status: Status;
+  @IsOptional() @IsString() @MaxLength(500) remarks?: string;
+}
 export class AssignDto { @IsOptional() @IsUUID() engineerId?: string | null; }
+export class PageDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 20;
+}
+export class CheckDto {
+  @IsBoolean() done: boolean;
+  @IsOptional() @IsString() @MaxLength(500) notes?: string;
+}
+export class ReportDto {
+  @IsOptional() @IsDay() from?: string;
+  @IsOptional() @IsDay() to?: string;
+  @IsOptional() @IsUUID() engineerId?: string;
+  @IsOptional() @IsIn(PRIORITIES) priority?: Priority;
+}
