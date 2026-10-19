@@ -8,7 +8,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "test": "jest --testPathIgnorePatterns e2e",
-    "test:e2e": "jest e2e --runInBand",
+    "test:e2e": "jest e2e --maxWorkers=2",
     "test:db": "docker run -d --rm --name edgenet-test-db -e POSTGRES_USER=edgenet -e POSTGRES_PASSWORD=edgenet -e POSTGRES_DB=edgenet_test -p 55433:5432 --tmpfs /var/lib/postgresql/data postgres:16",
     "migration:generate": "nest build && typeorm migration:generate -d dist/data-source.js",
     "migration:revert": "nest build && typeorm migration:revert -d dist/data-source.js"
@@ -20,6 +20,7 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.0",
+    "@nestjs/swagger": "^7.4.2",
     "@nestjs/typeorm": "^10.0.2",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",

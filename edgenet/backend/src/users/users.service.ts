@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { IsEmail, IsString, MinLength } from 'class-validator';
@@ -23,7 +23,7 @@ export class UsersService {
 
   async engineers(me: User) {
     const [engineers, all] = await Promise.all([
-      this.users.find({ where: { organisation: me.organisation, role: 'engineer' }, order: { name: 'ASC' } }),
+      this.users.find({ where: { organisation: me.organisation, role: 'engineer', approved: true }, order: { name: 'ASC' } }),
       this.reqs.find({ where: { organisation: me.organisation } }),
     ]);
     return engineers.map((e) => {
@@ -35,6 +35,25 @@ export class UsersService {
         total: mine.length,
       };
     });
+  }
+
+  /** Engineers who have registered for this organisation and are waiting for approval. */
+  pending(me: User) {
+    return this.users.find({ where: { organisation: me.organisation, role: 'engineer', approved: false }, order: { createdAt: 'ASC' } });
+  }
+
+  async approve(me: User, id: string) {
+    const res = await this.users.update({ id, organisation: me.organisation, role: 'engineer', approved: false }, { approved: true });
+    if (!res.affected) throw new NotFoundException('No pending registration with that id in your organisation.');
+    return this.users.findOneBy({ id });
+  }
+
+  /** Removes a registration that was never approved. It never had access, so there is nothing else to clean up,
+   *  and the person can register again with the same email. */
+  async reject(me: User, id: string) {
+    const res = await this.users.delete({ id, organisation: me.organisation, role: 'engineer', approved: false });
+    if (!res.affected) throw new NotFoundException('No pending registration with that id in your organisation.');
+    return { ok: true };
   }
 
   async updateProfile(me: User, dto: UpdateProfileDto) {

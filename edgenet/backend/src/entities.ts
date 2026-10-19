@@ -24,6 +24,9 @@ export class User {
   @Column({ select: false }) passwordHash: string;
   @Column({ type: 'varchar' }) role: Role;
   @Column() organisation: string;
+  // Engineers register unapproved and cannot sign in until their organisation's Account Manager approves them.
+  // Defaults to true so accounts created before approval existed keep working.
+  @Column({ default: true }) approved: boolean;
   @CreateDateColumn() createdAt: Date;
 }
 

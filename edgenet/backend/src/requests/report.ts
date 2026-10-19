@@ -59,7 +59,7 @@ export async function buildReport(m: EntityManager, me: User, f: ReportFilters, 
         count(r.id) FILTER (WHERE ${completedSql})::int AS completed,
         count(r.id)::int AS total
       FROM users u LEFT JOIN r ON r."assignedEngineerId" = u.id
-      WHERE u.organisation = $1 AND u.role = 'engineer' ${f.engineerId ? `AND u.id = $${params.indexOf(f.engineerId) + 1}` : ''}
+      WHERE u.organisation = $1 AND u.role = 'engineer' AND u.approved ${f.engineerId ? `AND u.id = $${params.indexOf(f.engineerId) + 1}` : ''}
       GROUP BY u.id, u.name ORDER BY u.name`, params),
   ]);
   const utilisation: { type: string; unit: string; capacity: number; inUse: number }[] = await m.query(`

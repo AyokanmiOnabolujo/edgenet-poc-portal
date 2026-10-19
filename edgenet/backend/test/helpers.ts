@@ -23,12 +23,26 @@ export function useApp() {
 export const newOrg = () => `Org ${Date.now()}-${++n}`;
 export const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
+// Account Manager tokens by organisation, so engineers registered later can be approved.
+const managers = new Map<string, string>();
+
+/** Registers a user. Engineers are registered pending, approved by the organisation's Account Manager, then signed in. */
 export async function register(role: 'account_manager' | 'engineer', organisation: string) {
-  const res = await ctx.http.post('/api/auth/register').send({
-    name: `${role} ${++n}`, email: `${role}${n}.${Date.now()}@example.test`, password: 'password123', role, organisation,
-  });
+  const email = `${role}${++n}.${Date.now()}@example.test`;
+  const res = await ctx.http.post('/api/auth/register').send({ name: `${role} ${n}`, email, password: 'password123', role, organisation });
   expect(res.status).toBe(201);
-  return res.body as { token: string; user: { id: string } };
+  if (role === 'account_manager') {
+    managers.set(organisation, res.body.token);
+    return res.body as { token: string; user: { id: string } };
+  }
+  expect(res.body).toMatchObject({ pending: true });
+  const amToken = managers.get(organisation)!;
+  const pending = (await ctx.http.get('/api/users/pending').set(auth(amToken))).body as { id: string; email: string }[];
+  const id = pending.find((p) => p.email === email)!.id;
+  expect((await ctx.http.patch(`/api/users/${id}/approve`).set(auth(amToken))).status).toBe(200);
+  const login = await ctx.http.post('/api/auth/login').send({ email, password: 'password123' });
+  expect(login.status).toBe(201);
+  return login.body as { token: string; user: { id: string } };
 }
 
 /** A fresh organisation with an Account Manager, two engineers and one new request for 1-30 Nov 2026. */

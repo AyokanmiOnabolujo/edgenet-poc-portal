@@ -16,23 +16,38 @@ Next.js 14 + Tailwind CSS 3 (frontend) · NestJS 10 (API) · PostgreSQL 16 (data
    ```
    Opens on http://localhost:3000.
 
-Set a long random `JWT_SECRET` in `backend/.env` before deploying anywhere.
+`JWT_SECRET` is required: the API will not start without it, and in production (`NODE_ENV=production`) it refuses the placeholder values. Use a long random value anywhere other than your own machine. Interactive API docs are at http://localhost:4000/api/docs (not served in production unless `API_DOCS=true`).
 
 ## First use
 
-Register an Account Manager (one allowed per organisation name), then register Engineers using the same organisation name. Sign in as the Account Manager to raise requests and assign engineers.
+Register an Account Manager (one allowed per organisation name). Engineers then register with the same organisation name; they cannot sign in until the Account Manager approves them on the Engineers page. Sign in as the Account Manager to raise requests, add inventory and assign engineers.
 
-## Roles
+## Roles and permissions
 
-| | Account Manager | Engineer |
+Every rule here is enforced by the API (guards and service checks), not only by which buttons the pages show. All data is scoped to the caller's organisation: records from another organisation answer `404`.
+
+| Action | Account Manager | Engineer |
 |---|---|---|
-| Requests, board, details, settings | yes | yes |
-| Raise a request, assign/reassign engineer | yes | no |
-| Engineers page, Reports, Inventory | yes | no |
-| Allocate / release resources on a request | any request | only requests assigned to them |
+| View requests, board, request details, history, checklist, allocations, inventory list | yes | yes |
+| Raise a request; assign, reassign or unassign the engineer | yes | no |
 | Change a request's stage | any request | only requests assigned to them |
 | Cancel an unfinished PoC | yes | no |
+| Allocate or release resources on a request | any request | only requests assigned to them |
 | Tick decommissioning tasks | any request | only requests assigned to them |
+| Add or change inventory | yes | no |
+| Engineers page, approve or reject engineers | yes | no |
+| Reports (analytics) | yes | no |
+| Deadline alerts | all requests | only requests assigned to them |
+| Edit or delete audit history | no one | no one |
+| Edit own name, email, password | yes | yes |
+
+## Security
+
+- **Joining an organisation:** an engineer registering for an existing organisation is created unapproved, gets no token, and cannot sign in until that organisation's Account Manager approves them (`GET /users/pending`, `PATCH /users/:id/approve`, `DELETE /users/pending/:id`). Accounts created before this existed are approved. A rejected registration is deleted, so the person can try again.
+- **Tokens:** signed with `JWT_SECRET`, which has no fallback. Each request re-loads the user, so a token for a deleted or unapproved account stops working.
+- **Input:** every body and query is validated by its DTO; unknown fields are stripped, so a request cannot set `role`, `organisation`, `approved`, actor or timestamps. Ids in paths are checked as UUIDs and looked up within the caller's organisation.
+- **Errors:** unexpected failures answer `{ statusCode: 500, message: "Internal server error" }` and are logged on the server only; no stack traces or SQL reach the client. Unique-constraint races (two registrations at once) answer `409`.
+- **Not covered:** there is no rate limiting on sign-in, and tokens cannot be revoked before they expire (7 days).
 
 ## Request workflow
 
@@ -101,7 +116,7 @@ From `backend/`:
 ```
 npm test               # workflow rules, no database needed
 npm run test:db        # start a throwaway PostgreSQL in Docker on port 55433
-npm run test:e2e       # full API tests against that database
+npm run test:e2e       # full API tests against that database (each test file in its own process)
 docker stop edgenet-test-db
 ```
 
@@ -136,10 +151,12 @@ Timestamps are stored as UTC in `timestamp without time zone` columns; `backend/
 
 ## API
 
+Full reference with request bodies, roles, error codes and examples: **http://localhost:4000/api/docs** (OpenAPI JSON at `/api/docs-json`). Summary:
+
 `POST /auth/register` `POST /auth/login` `GET /auth/me` ·
 `GET /requests/alerts` ·
 `GET /requests?status=` `GET /requests/report?from=&to=&engineerId=&priority=` `GET /requests/:id` `GET /requests/:id/activity?page=&limit=` `POST /requests` `PATCH /requests/:id/status` (`{ status, remarks? }`) `PATCH /requests/:id/checklist/:key` `PATCH /requests/:id/assign` ·
-`GET /users/engineers` `PATCH /users/me` `PATCH /users/me/password` ·
+`GET /users/engineers` `GET /users/pending` `PATCH /users/:id/approve` `DELETE /users/pending/:id` `PATCH /users/me` `PATCH /users/me/password` ·
 `GET /resources?start=&end=` `POST /resources` `PATCH /resources/:id` ·
 `GET /requests/:id/allocations` `POST /requests/:id/allocations` `PATCH /requests/:id/allocations/:allocationId/release`
 

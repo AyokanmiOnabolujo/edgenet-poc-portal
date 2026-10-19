@@ -103,7 +103,7 @@ export class RequestsService {
   }
 
   private async engineer(me: User, id: string) {
-    const e = await this.users.findOneBy({ id, organisation: me.organisation, role: 'engineer' });
+    const e = await this.users.findOneBy({ id, organisation: me.organisation, role: 'engineer', approved: true });
     if (!e) throw new BadRequestException('Choose an engineer from your organisation.');
     return e;
   }

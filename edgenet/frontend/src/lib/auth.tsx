@@ -7,7 +7,8 @@ import { Role, User } from './types';
 interface AuthState {
   user: User | null; ready: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { name: string; email: string; password: string; role: Role; organisation: string }) => Promise<void>;
+  /** Resolves to a message when the account must wait for approval (engineers), or null when signed in. */
+  register: (data: { name: string; email: string; password: string; role: Role; organisation: string }) => Promise<string | null>;
   logout: () => void; setUser: (u: User) => void;
 }
 const Ctx = createContext<AuthState>(null!);
@@ -26,7 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthState = {
     user, ready, setUser,
     login: async (email, password) => finish(await api('/auth/login', { method: 'POST', body: { email, password } })),
-    register: async (data) => finish(await api('/auth/register', { method: 'POST', body: data })),
+    register: async (data) => {
+      const r = await api<{ token: string; user: User } | { pending: true; message: string }>('/auth/register', { method: 'POST', body: data });
+      if ('pending' in r) return r.message;
+      finish(r);
+      return null;
+    },
     logout: () => { localStorage.removeItem(TOKEN_KEY); setUser(null); },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
