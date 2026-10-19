@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Alert, Avatar, PriorityBadge, STATUS_STYLE } from '@/components/ui';
+import { Alert, Avatar, DeadlineBadge, PriorityBadge, STATUS_STYLE } from '@/components/ui';
 import { PageTitle } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -70,6 +70,7 @@ export default function Board() {
                       <Link href={`/requests/${r.id}`} className="rounded transition hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">{r.projectName}</Link>
                     </h3>
                     <p className="text-xs text-slate-500">{r.clientCompany}</p>
+                    {r.deadline && (r.deadline.overdue || r.deadline.dueSoon || r.deadline.lateStart) && <div className="mt-2 flex flex-wrap gap-1.5"><DeadlineBadge d={r.deadline} /></div>}
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
                       {r.assignedEngineer ? <><Avatar name={r.assignedEngineer.name} className="h-6 w-6 text-[10px]" />{r.assignedEngineer.name}</> : <span className="text-slate-400">Unassigned</span>}
                     </div>

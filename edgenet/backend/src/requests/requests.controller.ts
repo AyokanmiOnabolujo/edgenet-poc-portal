@@ -12,6 +12,7 @@ export class RequestsController {
   @Get() list(@CurrentUser() me: User, @Query('status') status?: string) {
     return this.s.list(me, (STATUSES as readonly string[]).includes(status) ? (status as Status) : undefined);
   }
+  @Get('alerts') alerts(@CurrentUser() me: User) { return this.s.alerts(me); }
   @Get('report') @Roles('account_manager') report(@CurrentUser() me: User) { return this.s.report(me); }
   @Get(':id/activity') activity(@CurrentUser() me: User, @Param('id', ParseUUIDPipe) id: string, @Query() q: PageDto) {
     return this.s.activity(me, id, q.page, q.limit);

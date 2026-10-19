@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { Activity, ActivityAction, DecommissionCheck, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
 import { UsersService } from '../users/users.service';
 import { logActivity } from './audit';
 import { CHECKLIST, closures, closureState, lockRequest } from './closure';
+import { deadline, deadlineSettings, todayIn } from './deadlines';
 import { CreateRequestDto } from './dto';
 import { ALLOCATABLE, checkTransition, isResponsible, LABEL, nextStatuses } from './workflow';
 
@@ -12,6 +13,9 @@ export const HISTORY_PAGE = 20;
 
 @Injectable()
 export class RequestsService {
+  // Read once, so a bad APP_TIMEZONE or DEADLINE_WARNING_DAYS stops the API at startup instead of failing requests.
+  private deadlines = deadlineSettings();
+
   constructor(
     @InjectRepository(PocRequest) private reqs: Repository<PocRequest>,
     @InjectRepository(Activity) private acts: Repository<Activity>,
@@ -25,7 +29,37 @@ export class RequestsService {
       order: { createdAt: 'DESC' },
     });
     const blocks = await closures(this.reqs.manager, rows.map((r) => r.id));
-    return rows.map((r) => ({ ...r, nextStatuses: nextStatuses(me, r, blocks.get(r.id)) }));
+    const today = this.today();
+    return rows.map((r) => ({
+      ...r, nextStatuses: nextStatuses(me, r, blocks.get(r.id)), deadline: deadline(r, today, this.deadlines.warnDays),
+    }));
+  }
+
+  private today() { return todayIn(this.deadlines.timeZone); }
+
+  /** Open requests that are overdue, due soon or late to start: every one for the Account Manager, an engineer's own
+   *  assignments for an engineer. Most urgent first. */
+  async alerts(me: User) {
+    const today = this.today();
+    const open = await this.reqs.find({
+      where: {
+        organisation: me.organisation, status: Not(In(['completed', 'decommissioned'])),
+        ...(me.role === 'engineer' ? { assignedEngineer: { id: me.id } } : {}),
+      },
+    });
+    const items = open
+      .map((r) => ({ ...r, deadline: deadline(r, today, this.deadlines.warnDays) }))
+      .filter((r) => r.deadline.overdue || r.deadline.dueSoon || r.deadline.lateStart)
+      .sort((a, b) => a.deadline.daysLeft - b.deadline.daysLeft);
+    return {
+      today, timeZone: this.deadlines.timeZone, warnDays: this.deadlines.warnDays,
+      counts: {
+        overdue: items.filter((r) => r.deadline.overdue).length,
+        dueSoon: items.filter((r) => r.deadline.dueSoon).length,
+        lateStart: items.filter((r) => r.deadline.lateStart).length,
+      },
+      items,
+    };
   }
 
   private async find(me: User, id: string) {
@@ -44,6 +78,7 @@ export class RequestsService {
     const responsible = isResponsible(me, r);
     return Object.assign(r, {
       activity: items, activityTotal: total, checklist,
+      deadline: deadline(r, this.today(), this.deadlines.warnDays),
       nextStatuses: nextStatuses(me, r, closure),
       canAllocate: responsible && ALLOCATABLE.includes(r.status),
       canRelease: responsible,

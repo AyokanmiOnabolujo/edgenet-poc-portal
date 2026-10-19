@@ -1,11 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Alert, Avatar, EmptyState, Icon, IconName, PriorityBadge, SkeletonRows, StatusBadge, STATUS_STYLE } from '@/components/ui';
+import { Alert, Avatar, DeadlineBadge, EmptyState, Icon, IconName, PriorityBadge, SkeletonRows, StatusBadge, STATUS_STYLE } from '@/components/ui';
 import { SummaryCard } from '@/components/AppUI';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { fmtDate, PocRequest, ref, Status, STATUSES, STATUS_LABEL } from '@/lib/types';
+import { Alerts, fmtDate, PocRequest, ref, Status, STATUSES, STATUS_LABEL } from '@/lib/types';
 
 const PREVIEW_ROWS = 5; // rows shown before "View all"
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -20,8 +20,10 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [greeting, setGreeting] = useState('Welcome back');
+  const [alerts, setAlerts] = useState<Alerts | null>(null);
 
   useEffect(() => { api<PocRequest[]>('/requests').then(setAll).catch((e) => setError(e.message)); }, []);
+  useEffect(() => { api<Alerts>('/requests/alerts').then(setAlerts).catch(() => {}); }, []);
   useEffect(() => {
     const h = new Date().getHours();
     setGreeting(h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening');
@@ -69,6 +71,30 @@ export default function Dashboard() {
       </div>
 
       {error && <Alert>{error}</Alert>}
+
+      {alerts && alerts.items.length > 0 && (
+        <section className="card mb-8 animate-slide-up overflow-hidden border-amber-200" aria-labelledby="alerts-heading">
+          <div className="flex flex-wrap items-center gap-3 px-6 pb-3 pt-5">
+            <Icon name="alert" className="h-5 w-5 text-amber-600" />
+            <h2 id="alerts-heading" className="font-serif text-xl font-bold tracking-tight text-ink-900">Needs attention</h2>
+            <p className="text-sm text-slate-500">
+              {[alerts.counts.overdue && `${alerts.counts.overdue} overdue`, alerts.counts.dueSoon && `${alerts.counts.dueSoon} due within ${alerts.warnDays} days`, alerts.counts.lateStart && `${alerts.counts.lateStart} not started`].filter(Boolean).join(' · ')}
+              {isAM ? '' : ' in your assignments'}
+            </p>
+          </div>
+          <ul className="divide-y divide-slate-100 border-t border-slate-100">
+            {alerts.items.slice(0, PREVIEW_ROWS).map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-6 py-3 text-sm">
+                <span className="w-20 font-semibold tabular-nums text-ink-900">{ref(r.number)}</span>
+                <Link href={`/requests/${r.id}`} className="font-medium text-slate-900 transition hover:text-brand-700">{r.projectName}</Link>
+                <span className="text-slate-500">{r.clientCompany}</span>
+                <span className="ml-auto flex flex-wrap items-center gap-2"><span className="text-xs text-slate-500">ends {fmtDate(r.endDate)}</span><DeadlineBadge d={r.deadline} /></span>
+              </li>
+            ))}
+          </ul>
+          {alerts.items.length > PREVIEW_ROWS && <p className="border-t border-slate-100 px-6 py-3 text-xs text-slate-500">And {alerts.items.length - PREVIEW_ROWS} more.</p>}
+        </section>
+      )}
 
       <section className="card overflow-hidden" aria-labelledby="requests-heading">
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-4 pt-6">
@@ -125,7 +151,7 @@ export default function Dashboard() {
                       </td>
                       <td className={td}><StatusBadge status={r.status} /></td>
                       <td className={td}><PriorityBadge priority={r.priority} /></td>
-                      <td className={`${td} whitespace-nowrap text-slate-600`}>{fmtDate(r.endDate)}</td>
+                      <td className={`${td} text-slate-600`}><span className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">{fmtDate(r.endDate)}<DeadlineBadge d={r.deadline} /></span></td>
                       <td className={td}>
                         {r.assignedEngineer
                           ? <span className="flex items-center gap-2.5"><Avatar name={r.assignedEngineer.name} className="h-7 w-7 text-[11px]" />{r.assignedEngineer.name}</span>

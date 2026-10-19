@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Allocations } from '@/components/Allocations';
 import { Checklist } from '@/components/Checklist';
-import { Alert, Avatar, Field, Icon, PriorityBadge, StatusBadge } from '@/components/ui';
+import { Alert, Avatar, DeadlineBadge, Field, Icon, PriorityBadge, StatusBadge } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { ActivityItem, EngineerRow, fmtDate, fmtDateTime, PocRequest, ref, statusBody, transitionLabel, STATUS_LABEL } from '@/lib/types';
@@ -67,7 +67,7 @@ export default function Details() {
           <h1 className="text-2xl font-semibold text-slate-900 sm:text-[1.75rem]">{r.projectName}</h1>
           <p className="mt-1 text-sm text-slate-500">{r.clientCompany}</p>
         </div>
-        <div className="flex flex-wrap gap-2"><StatusBadge status={r.status} /><PriorityBadge priority={r.priority} /></div>
+        <div className="flex flex-wrap gap-2"><StatusBadge status={r.status} /><PriorityBadge priority={r.priority} /><DeadlineBadge d={r.deadline} /></div>
       </div>
       {error && <Alert>{error}</Alert>}
 

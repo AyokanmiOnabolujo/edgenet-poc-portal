@@ -6,6 +6,13 @@ export interface User { id: string; name: string; email: string; role: Role; org
 export interface Resource { type: string; quantity: number; notes?: string }
 /** A stage move the API says this user can make now. `blocked` explains why it cannot happen yet. */
 export interface Transition { to: Status; needsReason: boolean; cancel: boolean; blocked: string | null }
+/** Worked out by the API in the company's time zone. daysLeft is null once a request is Completed or Decommissioned. */
+export interface Deadline { daysLeft: number | null; overdue: boolean; dueSoon: boolean; lateStart: boolean }
+export interface Alerts {
+  today: string; timeZone: string; warnDays: number;
+  counts: { overdue: number; dueSoon: number; lateStart: number };
+  items: PocRequest[];
+}
 /** One decommissioning task. `auto` tasks complete themselves (all resources released). */
 export interface ChecklistItem {
   key: string; label: string; mandatory: boolean; auto: boolean; done: boolean;
@@ -22,6 +29,7 @@ export interface PocRequest {
   createdBy: User; assignedEngineer: User | null; createdAt: string;
   activity?: ActivityItem[]; activityTotal?: number; // latest entries only; older pages come from /requests/:id/activity
   nextStatuses: Transition[];
+  deadline: Deadline;
   // Set on GET /requests/:id, for the current user.
   checklist?: ChecklistItem[]; canAllocate?: boolean; canRelease?: boolean; canEditChecklist?: boolean;
 }
@@ -55,7 +63,10 @@ export const RESOURCE_TYPES = ['Virtual machine', 'Kubernetes cluster', 'Storage
 export const RESOURCE_STATE_LABEL: Record<ResourceState, string> = { available: 'Available', maintenance: 'In maintenance', retired: 'Retired' };
 
 export const ref = (n: number) => `POC-${String(n).padStart(4, '0')}`;
-export const fmtDate = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+// Start/end dates are calendar dates ("2026-11-30"). new Date("2026-11-30") would mean midnight UTC, which shows as the
+// day before for anyone west of UTC, so date-only values are read as local midnight instead.
+export const fmtDate = (d: string) =>
+  new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 export const fmtDateTime = (d: string) => new Date(d).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 /** How a stage move is offered in a menu. */

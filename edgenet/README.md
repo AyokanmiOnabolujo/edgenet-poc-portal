@@ -66,6 +66,17 @@ The Account Manager or the assigned engineer ticks tasks with `PATCH /requests/:
 
 Stage moves, new allocations and checklist ticks all lock the request row for the length of their transaction (`lockRequest` in `closure.ts`), so a request cannot be closed while something is being allocated to it.
 
+## Deadlines and alerts
+
+Start and end dates are calendar dates. The API works out "today" in `APP_TIMEZONE` (default `Africa/Lagos`), so a server running in UTC agrees with the office calendar, and attaches a `deadline` to every request it returns: `{ daysLeft, overdue, dueSoon, lateStart }`.
+
+- **Overdue**: the end date has passed and the request is not Completed or Decommissioned.
+- **Due soon**: not overdue, and the end date is today or within `DEADLINE_WARNING_DAYS` days (default 7).
+- **Late start**: still a New Request after its start date.
+- Completed and Decommissioned requests never alert.
+
+`GET /requests/alerts` lists the alerting requests, most urgent first, with counts: all of them for the Account Manager, only their own assignments for an engineer. The dashboard shows them under "Needs attention", and the dashboard table, board cards and request page show badges. Alerts are in-app only; nothing is emailed. Both settings are checked when the API starts, which refuses to start if either is invalid.
+
 ## Tests
 
 From `backend/`:
@@ -109,6 +120,7 @@ Timestamps are stored as UTC in `timestamp without time zone` columns; `backend/
 ## API
 
 `POST /auth/register` `POST /auth/login` `GET /auth/me` ·
+`GET /requests/alerts` ·
 `GET /requests?status=` `GET /requests/report` `GET /requests/:id` `GET /requests/:id/activity?page=&limit=` `POST /requests` `PATCH /requests/:id/status` (`{ status, remarks? }`) `PATCH /requests/:id/checklist/:key` `PATCH /requests/:id/assign` ·
 `GET /users/engineers` `PATCH /users/me` `PATCH /users/me/password` ·
 `GET /resources?start=&end=` `POST /resources` `PATCH /resources/:id` ·
