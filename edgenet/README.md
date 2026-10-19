@@ -77,6 +77,23 @@ Start and end dates are calendar dates. The API works out "today" in `APP_TIMEZO
 
 `GET /requests/alerts` lists the alerting requests, most urgent first, with counts: all of them for the Account Manager, only their own assignments for an engineer. The dashboard shows them under "Needs attention", and the dashboard table, board cards and request page show badges. Alerts are in-app only; nothing is emailed. Both settings are checked when the API starts, which refuses to start if either is invalid.
 
+## Analytics (Reports page)
+
+`GET /requests/report` (Account Manager only) aggregates everything in PostgreSQL; nothing is counted in the browser. Definitions, also in `backend/src/requests/report.ts`:
+
+| Metric | Meaning |
+|---|---|
+| Active | New Request, Infrastructure Provisioning or In Testing |
+| Completed | reached Completed: status Completed, or Decommissioned without having been cancelled |
+| Cancelled | decommissioned through the Account Manager's cancel path |
+| Completion rate | completed ÷ (completed + cancelled); shown as "–" until something has closed |
+| Avg. time to complete | days from being raised to the first move to Completed, from the audit trail. Completions recorded before the audit trail had action types are left out rather than guessed |
+| Overdue / due soon / not started | the deadline rules above, over active requests |
+| Engineer workload | per engineer: requests assigned, active, completed |
+| Resource utilisation | units allocated today ÷ capacity, per resource type and unit, over items that are available |
+
+Filters: `from` and `to` (creation date in `APP_TIMEZONE`, inclusive), `engineerId` and `priority`. They apply to every request metric; utilisation is a snapshot of today's inventory and ignores them. `completionRate` used to mean completed ÷ all requests; it now excludes open requests, and is `null` with nothing closed.
+
 ## Tests
 
 From `backend/`:
@@ -121,7 +138,7 @@ Timestamps are stored as UTC in `timestamp without time zone` columns; `backend/
 
 `POST /auth/register` `POST /auth/login` `GET /auth/me` ·
 `GET /requests/alerts` ·
-`GET /requests?status=` `GET /requests/report` `GET /requests/:id` `GET /requests/:id/activity?page=&limit=` `POST /requests` `PATCH /requests/:id/status` (`{ status, remarks? }`) `PATCH /requests/:id/checklist/:key` `PATCH /requests/:id/assign` ·
+`GET /requests?status=` `GET /requests/report?from=&to=&engineerId=&priority=` `GET /requests/:id` `GET /requests/:id/activity?page=&limit=` `POST /requests` `PATCH /requests/:id/status` (`{ status, remarks? }`) `PATCH /requests/:id/checklist/:key` `PATCH /requests/:id/assign` ·
 `GET /users/engineers` `PATCH /users/me` `PATCH /users/me/password` ·
 `GET /resources?start=&end=` `POST /resources` `PATCH /resources/:id` ·
 `GET /requests/:id/allocations` `POST /requests/:id/allocations` `PATCH /requests/:id/allocations/:allocationId/release`

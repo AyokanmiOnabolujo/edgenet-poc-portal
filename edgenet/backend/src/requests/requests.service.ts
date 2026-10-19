@@ -1,11 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
-import { Activity, ActivityAction, DecommissionCheck, PRIORITIES, PocRequest, STATUSES, Status, User } from '../entities';
-import { UsersService } from '../users/users.service';
+import { Activity, ActivityAction, DecommissionCheck, PocRequest, Status, User } from '../entities';
 import { logActivity } from './audit';
 import { CHECKLIST, closures, closureState, lockRequest } from './closure';
 import { deadline, deadlineSettings, todayIn } from './deadlines';
+import { buildReport, ReportFilters } from './report';
 import { CreateRequestDto } from './dto';
 import { ALLOCATABLE, checkTransition, isResponsible, LABEL, nextStatuses } from './workflow';
 
@@ -20,7 +20,6 @@ export class RequestsService {
     @InjectRepository(PocRequest) private reqs: Repository<PocRequest>,
     @InjectRepository(Activity) private acts: Repository<Activity>,
     @InjectRepository(User) private users: Repository<User>,
-    private usersSvc: UsersService,
   ) {}
 
   async list(me: User, status?: Status) {
@@ -183,22 +182,8 @@ export class RequestsService {
     return this.get(me, id);
   }
 
-  async report(me: User) {
-    const all = await this.reqs.find({ where: { organisation: me.organisation } });
-    const count = <T extends string>(keys: readonly T[], f: (r: PocRequest, k: T) => boolean) =>
-      Object.fromEntries(keys.map((k) => [k, all.filter((r) => f(r, k)).length])) as Record<T, number>;
-    const byStatus = count(STATUSES, (r, k) => r.status === k);
-    const byPriority = count(PRIORITIES, (r, k) => r.priority === k);
-    const total = all.length;
-    return {
-      total,
-      active: byStatus.new_request + byStatus.provisioning + byStatus.testing,
-      completed: byStatus.completed,
-      completionRate: total ? Math.round((byStatus.completed / total) * 100) : 0,
-      unassigned: all.filter((r) => !r.assignedEngineer && r.status !== 'completed' && r.status !== 'decommissioned').length,
-      byStatus,
-      byPriority,
-      workload: (await this.usersSvc.engineers(me)).map((e) => ({ id: e.id, name: e.name, active: e.active, completed: e.completed, total: e.total })),
-    };
+  /** Analytics for the Reports page. Every number is aggregated in the database; see report.ts for definitions. */
+  report(me: User, filters: ReportFilters) {
+    return buildReport(this.reqs.manager, me, filters, this.deadlines);
   }
 }

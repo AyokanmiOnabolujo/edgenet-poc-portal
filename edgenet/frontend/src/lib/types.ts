@@ -46,11 +46,18 @@ export interface Allocation {
 /** Shape of a 409 from POST /requests/:id/allocations when there is not enough free capacity. */
 export interface AllocationConflict { request: string; projectName: string; startDate: string; endDate: string; quantity: number }
 export interface EngineerRow extends User { active: number; completed: number; total: number }
+/** GET /requests/report. Definitions live in backend/src/requests/report.ts. */
 export interface Report {
-  total: number; active: number; completed: number; completionRate: number; unassigned: number;
+  filters: ReportFilters; today: string; timeZone: string; warnDays: number;
+  total: number; active: number; completed: number; cancelled: number; unassigned: number;
+  completionRate: number | null; // completed / (completed + cancelled); null until something has closed
+  avgProcessingDays: number | null; timedCompletions: number;
+  overdue: number; dueSoon: number; lateStart: number;
   byStatus: Record<Status, number>; byPriority: Record<Priority, number>;
   workload: { id: string; name: string; active: number; completed: number; total: number }[];
+  utilisation: { type: string; unit: string; capacity: number; inUse: number; percent: number }[];
 }
+export interface ReportFilters { from?: string; to?: string; engineerId?: string; priority?: Priority }
 
 export const STATUSES: Status[] = ['new_request', 'provisioning', 'testing', 'completed', 'decommissioned'];
 export const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'critical'];

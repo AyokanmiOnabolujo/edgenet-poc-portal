@@ -3,6 +3,7 @@ import {
   ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 import { PRIORITIES, Priority, STATUSES, Status } from '../entities';
+import { IsDay } from '../resources/dto';
 
 export class ResourceDto {
   @IsString() @IsNotEmpty() type: string;
@@ -35,4 +36,10 @@ export class PageDto {
 export class CheckDto {
   @IsBoolean() done: boolean;
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
+}
+export class ReportDto {
+  @IsOptional() @IsDay() from?: string;
+  @IsOptional() @IsDay() to?: string;
+  @IsOptional() @IsUUID() engineerId?: string;
+  @IsOptional() @IsIn(PRIORITIES) priority?: Priority;
 }

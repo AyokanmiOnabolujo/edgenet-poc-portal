@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../auth/roles';
 import { STATUSES, Status, User } from '../entities';
-import { AssignDto, CheckDto, CreateRequestDto, PageDto, StatusDto } from './dto';
+import { AssignDto, CheckDto, CreateRequestDto, PageDto, ReportDto, StatusDto } from './dto';
 import { RequestsService } from './requests.service';
 
 @Controller('requests')
@@ -13,7 +13,7 @@ export class RequestsController {
     return this.s.list(me, (STATUSES as readonly string[]).includes(status) ? (status as Status) : undefined);
   }
   @Get('alerts') alerts(@CurrentUser() me: User) { return this.s.alerts(me); }
-  @Get('report') @Roles('account_manager') report(@CurrentUser() me: User) { return this.s.report(me); }
+  @Get('report') @Roles('account_manager') report(@CurrentUser() me: User, @Query() q: ReportDto) { return this.s.report(me, q); }
   @Get(':id/activity') activity(@CurrentUser() me: User, @Param('id', ParseUUIDPipe) id: string, @Query() q: PageDto) {
     return this.s.activity(me, id, q.page, q.limit);
   }
